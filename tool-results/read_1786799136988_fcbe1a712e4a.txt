@@ -1,0 +1,994 @@
+     1→'use client'
+     2→
+     3→import { useState } from 'react'
+     4→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Separator } from '@/components/ui/separator'
+     9→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    10→import {
+    11→  Dialog,
+    12→  DialogContent,
+    13→  DialogDescription,
+    14→  DialogHeader,
+    15→  DialogTitle,
+    16→  DialogTrigger,
+    17→} from '@/components/ui/dialog'
+    18→import {
+    19→  Hospital,
+    20→  Search,
+    21→  Star,
+    22→  Clock,
+    23→  MapPin,
+    24→  Phone,
+    25→  Mail,
+    26→  Calendar,
+    27→  ChevronLeft,
+    28→  ChevronRight,
+    29→  ExternalLink,
+    30→  Shield,
+    31→  Heart,
+    32→  Users,
+    33→  Stethoscope,
+    34→  TicketCheck,
+    35→  FileText,
+    36→  CreditCard,
+    37→  Bell,
+    38→  User,
+    39→  Menu,
+    40→  X,
+    41→  ArrowLeft,
+    42→  CheckCircle2,
+    43→  Globe,
+    44→  Zap,
+    45→  Smartphone,
+    46→  Baby,
+    47→  Eye,
+    48→  Bone,
+    49→  Pill,
+    50→  Microscope,
+    51→} from 'lucide-react'
+    52→
+    53→// ═══════════════════════════════════════════════════════════
+    54→// DATA
+    55→// ═══════════════════════════════════════════════════════════
+    56→
+    57→const hospitals = [
+    58→  { id: 1, name_ar: 'مستشفى ميدي كير المركزي', name_en: 'MediCare Central Hospital', location: 'الرياض، حي العليا', doctors: 42, departments: 8, rating: 4.8, image: '🏥' },
+    59→  { id: 2, name_ar: 'مستشفى ميدي كير الشمال', name_en: 'MediCare North Hospital', location: 'الرياض، حي الملقا', doctors: 28, departments: 6, rating: 4.6, image: '🏥' },
+    60→  { id: 3, name_ar: 'عيادة ميدي كير - جدة', name_en: 'MediCare Jeddah Clinic', location: 'جدة، حي الروضة', doctors: 15, departments: 5, rating: 4.7, image: '🏢' },
+    61→]
+    62→
+    63→const departments = [
+    64→  { id: 1, name_ar: 'القلب والأوعية الدموية', name_en: 'Cardiology', icon: Heart, color: 'text-red-500', doctors: 6, desc_ar: 'تشخيص وعلاج أمراض القلب والشرايين' },
+    65→  { id: 2, name_ar: 'الباطنة', name_en: 'Internal Medicine', icon: Stethoscope, color: 'text-blue-500', doctors: 5, desc_ar: 'الطب الباطني العام وأمراض الجهاز الهضمي' },
+    66→  { id: 3, name_ar: 'طب الأطفال', name_en: 'Pediatrics', icon: Baby, color: 'text-pink-500', doctors: 4, desc_ar: 'رعاية صحية شاملة للأطفال والرضع' },
+    67→  { id: 4, name_ar: 'جراحة العظام', name_en: 'Orthopedics', icon: Bone, color: 'text-amber-500', doctors: 3, desc_ar: 'علاج إصابات و أمراض العظام والمفاصل' },
+    68→  { id: 5, name_ar: 'الأمراض الجلدية', name_en: 'Dermatology', icon: Eye, color: 'text-purple-500', doctors: 3, desc_ar: 'علاج الأمراض الجلدية والتجميل' },
+    69→  { id: 6, name_ar: 'طب العيون', name_en: 'Ophthalmology', icon: Eye, color: 'text-cyan-500', doctors: 4, desc_ar: 'فحص وعلاج أمراض العيون والرؤية' },
+    70→  { id: 7, name_ar: 'الأنف والأذن والحنجرة', name_en: 'ENT', icon: Stethoscope, color: 'text-orange-500', doctors: 3, desc_ar: 'أمراض الأنف والأذن والحنجرة' },
+    71→  { id: 8, name_ar: 'الأشعة والتشخيص', name_en: 'Radiology', icon: Microscope, color: 'text-teal-500', doctors: 2, desc_ar: 'خدمات الأشعة والتصوير الطبي' },
+    72→]
+    73→
+    74→const doctors = [
+    75→  { id: 1, name_ar: 'د. سارة علي', name_en: 'Dr. Sarah Ali', specialty_ar: 'أمراض البطانة', specialty_en: 'Internal Medicine', dept: 'الباطنة', rating: 4.8, reviews: 156, patients: 342, fee: 200, available: true, image: '👩‍⚕️', schedule: 'السبت - الأربعاء | 9ص - 5م' },
+    76→  { id: 2, name_ar: 'د. خالد يوسف', name_en: 'Dr. Khaled Youssef', specialty_ar: 'جراحة القلب', specialty_en: 'Cardiac Surgery', dept: 'القلب', rating: 4.9, reviews: 203, patients: 289, fee: 350, available: true, image: '👨‍⚕️', schedule: 'الأحد - الخميس | 8ص - 4م' },
+    77→  { id: 3, name_ar: 'د. منى عبدالله', name_en: 'Dr. Mona Abdullah', specialty_ar: 'طب الأطفال', specialty_en: 'Pediatrics', dept: 'الأطفال', rating: 4.7, reviews: 98, patients: 198, fee: 150, available: true, image: '👩‍⚕️', schedule: 'السبت - الخميس | 10ص - 6م' },
+    78→  { id: 4, name_ar: 'د. محمد رضا', name_en: 'Dr. Mohamed Reda', specialty_ar: 'جراحة العظام', specialty_en: 'Orthopedic Surgery', dept: 'العظام', rating: 4.5, reviews: 67, patients: 156, fee: 280, available: false, image: '👨‍⚕️', schedule: 'الإثنين - الجمعة | 9ص - 3م' },
+    79→  { id: 5, name_ar: 'د. هالة سامي', name_en: 'Dr. Hala Sami', specialty_ar: 'أمراض جلدية', specialty_en: 'Dermatology', dept: 'الجلدية', rating: 4.6, reviews: 112, patients: 267, fee: 180, available: true, image: '👩‍⚕️', schedule: 'السبت - الأربعاء | 11ص - 7م' },
+    80→  { id: 6, name_ar: 'د. عمرو حسين', name_en: 'Dr. Amr Hussein', specialty_ar: 'طب العيون', specialty_en: 'Ophthalmology', dept: 'العيون', rating: 4.4, reviews: 89, patients: 312, fee: 220, available: true, image: '👨‍⚕️', schedule: 'الأحد - الخميس | 10ص - 5م' },
+    81→]
+    82→
+    83→const reviews = [
+    84→  { id: 1, patient: 'أحمد محمد', rating: 5, comment: 'دكتور ممتاز واستقبال حلو والتنظيم رائع', date: '2026-08-10' },
+    85→  { id: 2, patient: 'فاطمة حسن', rating: 4, comment: 'خدمة جيدة لكن وقت الانتظار طويل', date: '2026-08-08' },
+    86→  { id: 3, patient: 'عمر سعيد', rating: 5, comment: 'أفضل مستشفى في المنطقة، أنصح الكل', date: '2026-08-05' },
+    87→]
+    88→
+    89→const timeSlots = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '13:00', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30']
+    90→
+    91→// ═══════════════════════════════════════════════════════════
+    92→// MAIN COMPONENT
+    93→// ═══════════════════════════════════════════════════════════
+    94→
+    95→type Page = 'home' | 'hospital' | 'doctors' | 'doctor-profile' | 'departments' | 'booking' | 'login' | 'register' | 'profile' | 'queue' | 'records' | 'prescriptions' | 'invoices' | 'notifications'
+    96→
+    97→export default function Home() {
+    98→  const [currentPage, setCurrentPage] = useState<Page>('home')
+    99→  const [searchQuery, setSearchQuery] = useState('')
+   100→  const [selectedHospital, setSelectedHospital] = useState<number>(1)
+   101→  const [selectedDoctor, setSelectedDoctor] = useState<number>(0)
+   102→  const [selectedDate, setSelectedDate] = useState('')
+   103→  const [selectedTime, setSelectedTime] = useState('')
+   104→  const [selectedDept, setSelectedDept] = useState<number>(0)
+   105→  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+   106→  const [bookingSuccess, setBookingSuccess] = useState(false)
+   107→
+   108→  const navigate = (page: Page, extra?: any) => {
+   109→    setCurrentPage(page)
+   110→    if (extra?.doctorId) setSelectedDoctor(extra.doctorId)
+   111→    if (extra?.deptId) setSelectedDept(extra.deptId)
+   112→    if (extra?.hospitalId) setSelectedHospital(extra.hospitalId)
+   113→    setBookingSuccess(false)
+   114→    window.scrollTo(0, 0)
+   115→  }
+   116→
+   117→  const handleBooking = () => {
+   118→    setBookingSuccess(true)
+   119→  }
+   120→
+   121→  return (
+   122→    <div className="min-h-screen bg-gray-50" dir="rtl">
+   123→      {/* ═══════════════════════════════════════════════════════ */}
+   124→      {/* NAVIGATION BAR */}
+   125→      {/* ═══════════════════════════════════════════════════════ */}
+   126→      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b shadow-sm">
+   127→        <div className="mx-auto max-w-6xl px-4 flex items-center justify-between h-14">
+   128→          <button onClick={() => navigate('home')} className="flex items-center gap-2">
+   129→            <span className="text-xl">🏥</span>
+   130→            <span className="font-bold text-teal-700 text-sm sm:text-base">MediCare Pro</span>
+   131→          </button>
+   132→
+   133→          {/* Desktop Menu */}
+   134→          <div className="hidden md:flex items-center gap-1">
+   135→            <NavButton onClick={() => navigate('home')} active={currentPage === 'home'}>الرئيسية</NavButton>
+   136→            <NavButton onClick={() => navigate('doctors')}>الأطباء</NavButton>
+   137→            <NavButton onClick={() => navigate('departments')}>الأقسام</NavButton>
+   138→            <NavButton onClick={() => navigate('login')}>تسجيل الدخول</NavButton>
+   139→          </div>
+   140→
+   141→          <div className="flex items-center gap-2">
+   142→            <Button
+   143→              size="sm"
+   144→              className="bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700 hidden sm:flex"
+   145→              onClick={() => navigate('register')}
+   146→            >
+   147→              <User className="h-3.5 w-3.5 ml-1" />
+   148→              حساب جديد
+   149→            </Button>
+   150→            <Button
+   151→              variant="outline"
+   152→              size="sm"
+   153→              className="hidden sm:flex gap-1"
+   154→              onClick={() => navigate('login')}
+   155→            >
+   156→              تسجيل الدخول
+   157→            </Button>
+   158→            <Button
+   159→              size="sm"
+   160→              variant="ghost"
+   161→              className="md:hidden"
+   162→              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+   163→            >
+   164→              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+   165→            </Button>
+   166→          </div>
+   167→        </div>
+   168→
+   169→        {/* Mobile Menu */}
+   170→        {mobileMenuOpen && (
+   171→          <div className="md:hidden border-t bg-white">
+   172→            <div className="px-4 py-3 space-y-1">
+   173→              <MobileNavButton onClick={() => { navigate('home'); setMobileMenuOpen(false) }}>🏠 الرئيسية</MobileNavButton>
+   174→              <MobileNavButton onClick={() => { navigate('doctors'); setMobileMenuOpen(false) }}>👨‍⚕️ الأطباء</MobileNavButton>
+   175→              <MobileNavButton onClick={() => { navigate('departments'); setMobileMenuOpen(false) }}>🏢 الأقسام</MobileNavButton>
+   176→              <MobileNavButton onClick={() => { navigate('login'); setMobileMenuOpen(false) }}>🔑 تسجيل الدخول</MobileNavButton>
+   177→              <Separator />
+   178→              <Button className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white" onClick={() => { navigate('register'); setMobileMenuOpen(false) }}>
+   179→                إنشاء حساب جديد
+   180→              </Button>
+   181→            </div>
+   182→          </div>
+   183→        )}
+   184→      </nav>
+   185→
+   186→      {/* ═══════════════════════════════════════════════════════ */}
+   187→      {/* MAIN CONTENT */}
+   188→      {/* ═══════════════════════════════════════════════════════ */}
+   189→      <main className="mx-auto max-w-6xl px-4 py-6">
+   190→        {/* HOME PAGE */}
+   191→        {currentPage === 'home' && (
+   192→          <div className="space-y-8">
+   193→            {/* Hero */}
+   194→            <section className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-teal-600 to-emerald-700 text-white p-8 sm:p-12">
+   195→              <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -translate-x-1/2 -translate-y-1/2" />
+   196→              <div className="absolute bottom-0 right-0 w-48 h-48 bg-white/5 rounded-full translate-x-1/4 translate-y-1/4" />
+   197→              <div className="relative z-10 max-w-xl">
+   198→                <h1 className="text-3xl sm:text-4xl font-bold mb-3">رعاية صحية أفضل لعائلتك</h1>
+   199→                <p className="text-teal-100 mb-6 text-sm sm:text-base">
+   200→                  احجز موعدك بسهولة مع أفضل الأطباء. نظام طوابير ذكي، إشعارات فورية، ودفع إلكتروني آمن.
+   201→                </p>
+   202→                <div className="flex flex-wrap gap-3">
+   203→                  <Button size="lg" className="bg-white text-teal-700 hover:bg-teal-50 font-semibold" onClick={() => navigate('doctors')}>
+   204→                    <Search className="h-4 w-4 ml-2" />
+   205→                    احجز موعدك الآن
+   206→                  </Button>
+   207→                  <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10" onClick={() => navigate('departments')}>
+   208→                    تصفح الأقسام
+   209→                  </Button>
+   210→                </div>
+   211→              </div>
+   212→            </section>
+   213→
+   214→            {/* Quick Search */}
+   215→            <section>
+   216→              <div className="relative max-w-2xl mx-auto">
+   217→                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+   218→                <Input
+   219→                  placeholder="ابحث عن طبيب، قسم، أو مستشفى..."
+   220→                  className="pr-10 h-12 text-sm rounded-xl border-gray-200"
+   221→                  value={searchQuery}
+   222→                  onChange={(e) => setSearchQuery(e.target.value)}
+   223→                />
+   224→              </div>
+   225→            </section>
+   226→
+   227→            {/* Stats */}
+   228→            <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+   229→              {[
+   230→                { icon: Hospital, label: 'مستشفى', value: '3', color: 'from-teal-500 to-emerald-600' },
+   231→                { icon: Users, label: 'طبيب', value: '42', color: 'from-blue-500 to-indigo-600' },
+   232→                { icon: Star, label: 'تقييم', value: '4.8', color: 'from-amber-500 to-orange-600' },
+   233→                { icon: Clock, label: 'متوسط الانتظار', value: '18 د', color: 'from-rose-500 to-pink-600' },
+   234→              ].map((stat) => (
+   235→                <div key={stat.label} className="bg-white rounded-xl p-4 text-center shadow-sm border">
+   236→                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br ${stat.color} text-white mb-2`}>
+   237→                    <stat.icon className="h-5 w-5" />
+   238→                  </div>
+   239→                  <p className="text-xl font-bold">{stat.value}</p>
+   240→                  <p className="text-xs text-gray-500">{stat.label}</p>
+   241→                </div>
+   242→              ))}
+   243→            </section>
+   244→
+   245→            {/* Hospitals */}
+   246→            <section>
+   247→              <div className="flex justify-between items-center mb-4">
+   248→                <h2 className="text-lg font-bold text-gray-900">المستشفيات والعيادات</h2>
+   249→                <Button variant="ghost" size="sm">عرض الكل ←</Button>
+   250→              </div>
+   251→              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   252→                {hospitals.map((h) => (
+   253→                  <Card key={h.id} className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('hospital', { hospitalId: h.id })}>
+   254→                    <div className="bg-gradient-to-l from-teal-500/10 to-emerald-500/10 p-6 text-center">
+   255→                      <span className="text-5xl">{h.image}</span>
+   256→                    </div>
+   257→                    <CardContent className="p-4">
+   258→                      <h3 className="font-bold text-sm">{h.name_ar}</h3>
+   259→                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+   260→                        <MapPin className="h-3 w-3" /> {h.location}
+   261→                      </p>
+   262→                      <div className="flex justify-between items-center mt-3 pt-3 border-t text-xs">
+   263→                        <span className="text-gray-500">{h.doctors} طبيب</span>
+   264→                        <span className="flex items-center gap-0.5 text-amber-500 font-semibold">
+   265→                          <Star className="h-3 w-3 fill-current" /> {h.rating}
+   266→                        </span>
+   267→                      </div>
+   268→                    </CardContent>
+   269→                  </Card>
+   270→                ))}
+   271→              </div>
+   272→            </section>
+   273→
+   274→            {/* Departments Quick Links */}
+   275→            <section>
+   276→              <div className="flex justify-between items-center mb-4">
+   277→                <h2 className="text-lg font-bold text-gray-900">الأقسام الطبية</h2>
+   278→                <Button variant="ghost" size="sm" onClick={() => navigate('departments')}>عرض الكل ←</Button>
+   279→              </div>
+   280→              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+   281→                {departments.slice(0, 4).map((dept) => (
+   282→                  <button
+   283→                    key={dept.id}
+   284→                    className="bg-white rounded-xl p-4 text-center shadow-sm border hover:shadow-md hover:border-teal-200 transition-all"
+   285→                    onClick={() => navigate('doctors')}
+   286→                  >
+   287→                    <dept.icon className={`h-8 w-8 mx-auto mb-2 ${dept.color}`} />
+   288→                    <p className="text-sm font-semibold">{dept.name_ar}</p>
+   289→                    <p className="text-[10px] text-gray-400">{dept.doctors} أطباء</p>
+   290→                  </button>
+   291→                ))}
+   292→              </div>
+   293→            </section>
+   294→
+   295→            {/* Top Doctors */}
+   296→            <section>
+   297→              <div className="flex justify-between items-center mb-4">
+   298→                <h2 className="text-lg font-bold text-gray-900">أفضل الأطباء</h2>
+   299→                <Button variant="ghost" size="sm" onClick={() => navigate('doctors')}>عرض الكل ←</Button>
+   300→              </div>
+   301→              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   302→                {doctors.slice(0, 3).map((doc) => (
+   303→                  <Card key={doc.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('doctor-profile', { doctorId: doc.id })}>
+   304→                    <CardContent className="p-4">
+   305→                      <div className="flex items-start gap-3">
+   306→                        <div className="w-14 h-14 rounded-xl bg-teal-50 flex items-center justify-center text-2xl shrink-0">
+   307→                          {doc.image}
+   308→                        </div>
+   309→                        <div className="flex-1 min-w-0">
+   310→                          <h3 className="font-bold text-sm">{doc.name_ar}</h3>
+   311→                          <p className="text-xs text-gray-500">{doc.specialty_ar} - {doc.dept}</p>
+   312→                          <div className="flex items-center gap-2 mt-1.5">
+   313→                            <span className="flex items-center gap-0.5 text-xs text-amber-500 font-semibold">
+   314→                              <Star className="h-3 w-3 fill-current" /> {doc.rating}
+   315→                            </span>
+   316→                            <Badge variant="outline" className="text-[10px]">
+   317→                              {doc.fee} ر.س
+   318→                            </Badge>
+   319→                            {doc.available && (
+   320→                              <Badge className="text-[10px] bg-green-50 text-green-600">متاح</Badge>
+   321→                            )}
+   322→                          </div>
+   323→                        </div>
+   324→                      </div>
+   325→                    </CardContent>
+   326→                  </Card>
+   327→                ))}
+   328→              </div>
+   329→            </section>
+   330→
+   331→            {/* Features */}
+   332→            <section>
+   333→              <h2 className="text-lg font-bold text-gray-900 mb-4 text-center">لماذا MediCare Pro؟</h2>
+   334→              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+   335→                {[
+   336→                  { icon: Clock, title: 'نظام طوابير ذكي', desc: 'رقم طابور تلقائي مع تقدير وقت الانتظار', color: 'text-blue-500' },
+   337→                  { icon: Bell, title: 'إشعارات فورية', desc: 'تنبيهات عبر Push و SMS عند دورك', color: 'text-amber-500' },
+   338→                  { icon: CreditCard, title: 'دفع إلكتروني', desc: 'ادفع بسهولة بالبطاقة أو المحفظة أو التأمين', color: 'text-green-500' },
+   339→                  { icon: Shield, title: 'أمن وخصوصية', desc: 'حماية كاملة لبياناتك الطبية', color: 'text-purple-500' },
+   340→                ].map((f) => (
+   341→                  <div key={f.title} className="bg-white rounded-xl p-4 border shadow-sm text-center">
+   342→                    <f.icon className={`h-8 w-8 mx-auto mb-2 ${f.color}`} />
+   343→                    <p className="text-sm font-semibold">{f.title}</p>
+   344→                    <p className="text-[10px] text-gray-500 mt-1">{f.desc}</p>
+   345→                  </div>
+   346→                ))}
+   347→              </div>
+   348→            </section>
+   349→
+   350→            {/* Reviews */}
+   351→            <section>
+   352→              <h2 className="text-lg font-bold text-gray-900 mb-4">آراء المرضى</h2>
+   353→              <div className="grid sm:grid-cols-3 gap-3">
+   354→                {reviews.map((r) => (
+   355→                  <Card key={r.id}>
+   356→                    <CardContent className="p-4">
+   357→                      <div className="flex items-center gap-1 mb-2">
+   358→                        {Array.from({ length: r.rating }).map((_, i) => (
+   359→                          <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
+   360→                        ))}
+   361→                      </div>
+   362→                      <p className="text-sm text-gray-700">{r.comment}</p>
+   363→                      <p className="text-xs text-gray-400 mt-2">{r.patient} • {r.date}</p>
+   364→                    </CardContent>
+   365→                  </Card>
+   366→                ))}
+   367→              </div>
+   368→            </section>
+   369→
+   370→            {/* Link to Admin */}
+   371→            <section className="bg-gradient-to-l from-slate-700 to-slate-800 rounded-2xl p-6 text-white text-center">
+   372→              <h3 className="font-bold text-lg mb-2">لوحة إدارة المستشفى</h3>
+   373→              <p className="text-sm text-slate-300 mb-4">للموظفين والأطباء - الدخول عبر لوحة الإدارة المنفصلة</p>
+   374→              <Button className="bg-white text-slate-700 hover:bg-slate-100 gap-1" onClick={() => navigate('login')}>
+   375→                <ExternalLink className="h-3.5 w-3.5" />
+   376→                الدخول كموظف
+   377→              </Button>
+   378→            </section>
+   379→          </div>
+   380→        )}
+   381→
+   382→        {/* DOCTORS LIST PAGE */}
+   383→        {currentPage === 'doctors' && (
+   384→          <div className="space-y-6">
+   385→            <div className="flex items-center gap-3 mb-2">
+   386→              <Button variant="ghost" size="sm" onClick={() => navigate('home')}>
+   387→                <ArrowLeft className="h-4 w-4" />
+   388→              </Button>
+   389→              <h2 className="text-xl font-bold">الأطباء</h2>
+   390→            </div>
+   391→
+   392→            {/* Filters */}
+   393→            <div className="flex flex-wrap gap-2">
+   394→              <Button size="sm" variant={selectedDept === 0 ? 'default' : 'outline'} onClick={() => setSelectedDept(0)}>الكل</Button>
+   395→              {departments.map((d) => (
+   396→                <Button key={d.id} size="sm" variant={selectedDept === d.id ? 'default' : 'outline'} onClick={() => setSelectedDept(d.id)}>
+   397→                  {d.name_ar}
+   398→                </Button>
+   399→              ))}
+   400→            </div>
+   401→
+   402→            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   403→              {doctors
+   404→                .filter((d) => selectedDept === 0 || departments[selectedDept - 1]?.name_ar === d.dept)
+   405→                .filter((d) => !searchQuery || d.name_ar.includes(searchQuery) || d.specialty_ar.includes(searchQuery))
+   406→                .map((doc) => (
+   407→                  <Card key={doc.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('doctor-profile', { doctorId: doc.id })}>
+   408→                    <CardContent className="p-5">
+   409→                      <div className="flex items-start gap-3 mb-3">
+   410→                        <div className="w-14 h-14 rounded-xl bg-teal-50 flex items-center justify-center text-2xl shrink-0">
+   411→                          {doc.image}
+   412→                        </div>
+   413→                        <div className="flex-1">
+   414→                          <h3 className="font-bold">{doc.name_ar}</h3>
+   415→                          <p className="text-xs text-gray-500">{doc.specialty_ar}</p>
+   416→                          <p className="text-[10px] text-gray-400">{doc.dept}</p>
+   417→                        </div>
+   418→                      </div>
+   419→                      <div className="flex flex-wrap items-center gap-2 mb-3">
+   420→                        <span className="flex items-center gap-0.5 text-sm text-amber-500 font-semibold">
+   421→                          <Star className="h-3.5 w-3.5 fill-current" /> {doc.rating}
+   422→                        </span>
+   423→                        <Badge variant="outline" className="text-[10px]">{doc.reviews} تقييم</Badge>
+   424→                        <Badge variant="outline" className="text-[10px]">{doc.patients} مريض</Badge>
+   425→                        {doc.available ? (
+   426→                          <Badge className="text-[10px] bg-green-50 text-green-600">متاح</Badge>
+   427→                        ) : (
+   428→                          <Badge className="text-[10px] bg-gray-100 text-gray-500">غير متاح</Badge>
+   429→                        )}
+   430→                      </div>
+   431→                      <div className="flex items-center justify-between pt-3 border-t">
+   432→                        <span className="text-xs text-gray-500">📅 {doc.schedule}</span>
+   433→                        <span className="text-sm font-bold text-teal-600">{doc.fee} ر.س</span>
+   434→                      </div>
+   435→                    </CardContent>
+   436→                  </Card>
+   437→                ))}
+   438→            </div>
+   439→          </div>
+   440→        )}
+   441→
+   442→        {/* DOCTOR PROFILE PAGE */}
+   443→        {currentPage === 'doctor-profile' && selectedDoctor > 0 && (() => {
+   444→          const doc = doctors.find((d) => d.id === selectedDoctor) || doctors[0]
+   445→          return (
+   446→            <div className="space-y-6">
+   447→              <Button variant="ghost" size="sm" onClick={() => navigate('doctors')} className="mb-2">
+   448→                <ArrowLeft className="h-4 w-4 ml-1" /> العودة للأطباء
+   449→              </Button>
+   450→
+   451→              {/* Doctor Header */}
+   452→              <Card>
+   453→                <CardContent className="p-6">
+   454→                  <div className="flex flex-col sm:flex-row items-start gap-4">
+   455→                    <div className="w-20 h-20 rounded-2xl bg-teal-50 flex items-center justify-center text-4xl shrink-0">
+   456→                      {doc.image}
+   457→                    </div>
+   458→                    <div className="flex-1">
+   459→                      <div className="flex flex-wrap items-center gap-2 mb-1">
+   460→                        <h2 className="text-xl font-bold">{doc.name_ar}</h2>
+   461→                        {doc.available ? (
+   462→                          <Badge className="bg-green-50 text-green-600">متاح للحجز</Badge>
+   463→                        ) : (
+   464→                          <Badge className="bg-gray-100 text-gray-500">غير متاح حالياً</Badge>
+   465→                        )}
+   466→                      </div>
+   467→                      <p className="text-sm text-gray-500">{doc.specialty_ar} • {doc.dept}</p>
+   468→                      <div className="flex flex-wrap gap-3 mt-3 text-sm">
+   469→                        <span className="flex items-center gap-1 text-amber-500 font-semibold">
+   470→                          <Star className="h-4 w-4 fill-current" /> {doc.rating} ({doc.reviews} تقييم)
+   471→                        </span>
+   472→                        <span className="text-gray-400">|</span>
+   473→                        <span className="text-gray-500">{doc.patients} مريض</span>
+   474→                        <span className="text-gray-400">|</span>
+   475→                        <span className="text-teal-600 font-bold">{doc.fee} ر.س</span>
+   476→                      </div>
+   477→                      <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+   478→                        <Clock className="h-3 w-3" /> {doc.schedule}
+   479→                      </div>
+   480→                    </div>
+   481→                    <Button
+   482→                      className="bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700"
+   483→                      disabled={!doc.available}
+   484→                      onClick={() => navigate('booking', { doctorId: doc.id })}
+   485→                    >
+   486→                      <Calendar className="h-4 w-4 ml-1" />
+   487→                      احجز موعد
+   488→                    </Button>
+   489→                  </div>
+   490→                </CardContent>
+   491→              </Card>
+   492→
+   493→              {/* Reviews for this doctor */}
+   494→              <Card>
+   495→                <CardHeader>
+   496→                  <CardTitle className="text-sm">تقييمات المرضى</CardTitle>
+   497→                </CardHeader>
+   498→                <CardContent className="space-y-3">
+   499→                  {reviews.map((r) => (
+   500→                    <div key={r.id} className="flex gap-3 p-3 rounded-lg border">
+   501→                      <div className="flex-1">
+   502→                        <div className="flex items-center gap-2 mb-1">
+   503→                          <span className="text-sm font-semibold">{r.patient}</span>
+   504→                          <div className="flex gap-0.5">
+   505→                            {Array.from({ length: r.rating }).map((_, i) => (
+   506→                              <Star key={i} className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+   507→                            ))}
+   508→                          </div>
+   509→                        </div>
+   510→                        <p className="text-xs text-gray-600">{r.comment}</p>
+   511→                      </div>
+   512→                      <span className="text-[10px] text-gray-400 shrink-0">{r.date}</span>
+   513→                    </div>
+   514→                  ))}
+   515→                </CardContent>
+   516→              </Card>
+   517→            </div>
+   518→          )
+   519→        })()}
+   520→
+   521→        {/* DEPARTMENTS PAGE */}
+   522→        {currentPage === 'departments' && (
+   523→          <div className="space-y-6">
+   524→            <div className="flex items-center gap-3">
+   525→              <Button variant="ghost" size="sm" onClick={() => navigate('home')}><ArrowLeft className="h-4 w-4" /></Button>
+   526→              <h2 className="text-xl font-bold">الأقسام الطبية</h2>
+   527→            </div>
+   528→            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   529→              {departments.map((dept) => (
+   530→                <Card key={dept.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('doctors')}>
+   531→                  <CardContent className="p-5 text-center">
+   532→                    <dept.icon className={`h-12 w-12 mx-auto mb-3 ${dept.color}`} />
+   533→                    <h3 className="font-bold">{dept.name_ar}</h3>
+   534→                    <p className="text-[10px] text-gray-400 mb-2">{dept.name_en}</p>
+   535→                    <p className="text-xs text-gray-500">{dept.desc_ar}</p>
+   536→                    <p className="text-xs text-teal-600 mt-3 font-semibold">{dept.doctors} أطباء</p>
+   537→                  </CardContent>
+   538→                </Card>
+   539→              ))}
+   540→            </div>
+   541→          </div>
+   542→        )}
+   543→
+   544→        {/* BOOKING PAGE */}
+   545→        {currentPage === 'booking' && selectedDoctor > 0 && (() => {
+   546→          const doc = doctors.find((d) => d.id === selectedDoctor) || doctors[0]
+   547→          return (
+   548→            <div className="max-w-2xl mx-auto space-y-6">
+   549→              <Button variant="ghost" size="sm" onClick={() => navigate('doctor-profile', { doctorId: doc.id })}>
+   550→                <ArrowLeft className="h-4 w-4 ml-1" /> العودة لملف الطبيب
+   551→              </Button>
+   552→
+   553→              <Card>
+   554→                <CardHeader>
+   555→                  <CardTitle>حجز موعد جديد</CardTitle>
+   556→                </CardHeader>
+   557→                <CardContent className="space-y-4">
+   558→                  {bookingSuccess ? (
+   559→                    <div className="text-center py-8">
+   560→                      <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+   561→                      <h3 className="text-xl font-bold text-green-600 mb-2">تم الحجز بنجاح!</h3>
+   562→                      <p className="text-sm text-gray-500 mb-4">
+   563→                        تم حجز موعدك مع {doc.name_ar} بتاريخ {selectedDate} الساعة {selectedTime}
+   564→                      </p>
+   565→                      <p className="text-xs text-gray-400 mb-6">رقم الطابور سيُرسل لك عبر SMS والإشعارات</p>
+   566→                      <div className="flex gap-3 justify-center">
+   567→                        <Button onClick={() => navigate('queue')} variant="outline">تتبع الطابور</Button>
+   568→                        <Button onClick={() => navigate('home')} className="bg-teal-500 text-white">الرئيسية</Button>
+   569→                      </div>
+   570→                    </div>
+   571→                  ) : (
+   572→                    <>
+   573→                      {/* Doctor Info */}
+   574→                      <div className="flex items-center gap-3 p-3 rounded-lg bg-teal-50">
+   575→                        <span className="text-2xl">{doc.image}</span>
+   576→                        <div>
+   577→                          <p className="font-semibold text-sm">{doc.name_ar}</p>
+   578→                          <p className="text-xs text-gray-500">{doc.specialty_ar} • {doc.fee} ر.س</p>
+   579→                        </div>
+   580→                      </div>
+   581→
+   582→                      {/* Date Selection */}
+   583→                      <div>
+   584→                        <label className="text-sm font-semibold mb-2 block">تاريخ الموعد</label>
+   585→                        <Input
+   586→                          type="date"
+   587→                          min={new Date().toISOString().split('T')[0]}
+   588→                          value={selectedDate}
+   589→                          onChange={(e) => setSelectedDate(e.target.value)}
+   590→                          className="rounded-lg"
+   591→                        />
+   592→                      </div>
+   593→
+   594→                      {/* Time Selection */}
+   595→                      {selectedDate && (
+   596→                        <div>
+   597→                          <label className="text-sm font-semibold mb-2 block">وقت الموعد</label>
+   598→                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+   599→                            {timeSlots.map((slot) => (
+   600→                              <button
+   601→                                key={slot}
+   602→                                className={`p-2 rounded-lg text-xs font-medium border transition-colors ${
+   603→                                  selectedTime === slot
+   604→                                    ? 'bg-teal-500 text-white border-teal-500'
+   605→                                    : 'bg-white hover:bg-teal-50 hover:border-teal-200'
+   606→                                }`}
+   607→                                onClick={() => setSelectedTime(slot)}
+   608→                              >
+   609→                                {slot}
+   610→                              </button>
+   611→                            ))}
+   612→                          </div>
+   613→                        </div>
+   614→                      )}
+   615→
+   616→                      {/* Payment Method */}
+   617→                      {selectedTime && (
+   618→                        <div>
+   619→                          <label className="text-sm font-semibold mb-2 block">طريقة الدفع</label>
+   620→                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   621→                            {[
+   622→                              { label: 'نقداً', icon: '💵' },
+   623→                              { label: 'بطاقة', icon: '💳' },
+   624→                              { label: 'محفظة', icon: '📱' },
+   625→                              { label: 'تأمين', icon: '🏥' },
+   626→                            ].map((m) => (
+   627→                              <button
+   628→                                key={m.label}
+   629→                                className="flex items-center gap-2 p-3 rounded-lg border hover:bg-teal-50 hover:border-teal-200 transition-colors text-xs"
+   630→                              >
+   631→                                <span className="text-lg">{m.icon}</span>
+   632→                                {m.label}
+   633→                              </button>
+   634→                            ))}
+   635→                          </div>
+   636→                        </div>
+   637→                      )}
+   638→
+   639→                      {/* Summary */}
+   640→                      {selectedTime && (
+   641→                        <div className="rounded-lg border p-4 bg-gray-50">
+   642→                          <div className="flex justify-between text-sm mb-1">
+   643→                            <span className="text-gray-500">الطبيب:</span>
+   644→                            <span className="font-semibold">{doc.name_ar}</span>
+   645→                          </div>
+   646→                          <div className="flex justify-between text-sm mb-1">
+   647→                            <span className="text-gray-500">التاريخ:</span>
+   648→                            <span className="font-semibold">{selectedDate}</span>
+   649→                          </div>
+   650→                          <div className="flex justify-between text-sm mb-1">
+   651→                            <span className="text-gray-500">الوقت:</span>
+   652→                            <span className="font-semibold">{selectedTime}</span>
+   653→                          </div>
+   654→                          <Separator className="my-2" />
+   655→                          <div className="flex justify-between text-sm">
+   656→                            <span className="text-gray-500">الرسوم:</span>
+   657→                            <span className="font-bold text-teal-600">{doc.fee} ر.س</span>
+   658→                          </div>
+   659→                        </div>
+   660→                      )}
+   661→
+   662→                      <Button
+   663→                        className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700 h-11"
+   664→                        disabled={!selectedDate || !selectedTime}
+   665→                        onClick={handleBooking}
+   666→                      >
+   667→                        <Calendar className="h-4 w-4 ml-2" />
+   668→                        تأكيد الحجز
+   669→                      </Button>
+   670→                    </>
+   671→                  )}
+   672→                </CardContent>
+   673→              </Card>
+   674→            </div>
+   675→          )
+   676→        })()}
+   677→
+   678→        {/* LOGIN PAGE */}
+   679→        {currentPage === 'login' && (
+   680→          <div className="max-w-md mx-auto">
+   681→            <Card>
+   682→              <CardHeader className="text-center">
+   683→                <span className="text-4xl mb-2 block">🏥</span>
+   684→                <CardTitle>تسجيل الدخول</CardTitle>
+   685→                <p className="text-xs text-gray-500">ادخل إلى حسابك في MediCare Pro</p>
+   686→              </CardHeader>
+   687→              <CardContent className="space-y-4">
+   688→                <div>
+   689→                  <label className="text-sm font-medium mb-1 block">البريد الإلكتروني</label>
+   690→                  <Input type="email" placeholder="example@email.com" className="rounded-lg" dir="ltr" />
+   691→                </div>
+   692→                <div>
+   693→                  <label className="text-sm font-medium mb-1 block">كلمة المرور</label>
+   694→                  <Input type="password" placeholder="••••••••" className="rounded-lg" dir="ltr" />
+   695→                </div>
+   696→                <Button className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white h-11">تسجيل الدخول</Button>
+   697→                <p className="text-center text-xs text-gray-500">
+   698→                  ليس لديك حساب؟ <button className="text-teal-600 font-semibold" onClick={() => navigate('register')}>إنشاء حساب</button>
+   699→                </p>
+   700→              </CardContent>
+   701→            </Card>
+   702→          </div>
+   703→        )}
+   704→
+   705→        {/* REGISTER PAGE */}
+   706→        {currentPage === 'register' && (
+   707→          <div className="max-w-md mx-auto">
+   708→            <Card>
+   709→              <CardHeader className="text-center">
+   710→                <span className="text-4xl mb-2 block">🤒</span>
+   711→                <CardTitle>إنشاء حساب جديد</CardTitle>
+   712→                <p className="text-xs text-gray-500">سجل كي تحجز مواعيد وتتابع سجلاتك الطبية</p>
+   713→              </CardHeader>
+   714→              <CardContent className="space-y-3">
+   715→                <div>
+   716→                  <label className="text-sm font-medium mb-1 block">الاسم الكامل</label>
+   717→                  <Input placeholder="الاسم الثلاثي" className="rounded-lg" />
+   718→                </div>
+   719→                <div>
+   720→                  <label className="text-sm font-medium mb-1 block">البريد الإلكتروني</label>
+   721→                  <Input type="email" placeholder="example@email.com" className="rounded-lg" dir="ltr" />
+   722→                </div>
+   723→                <div>
+   724→                  <label className="text-sm font-medium mb-1 block">رقم الهاتف</label>
+   725→                  <Input placeholder="+9665XXXXXXXX" className="rounded-lg" dir="ltr" />
+   726→                </div>
+   727→                <div>
+   728→                  <label className="text-sm font-medium mb-1 block">كلمة المرور</label>
+   729→                  <Input type="password" placeholder="8 أحرف على الأقل" className="rounded-lg" dir="ltr" />
+   730→                </div>
+   731→                <div>
+   732→                  <label className="text-sm font-medium mb-1 block">المستشفى المفضل</label>
+   733→                  <select className="w-full border rounded-lg p-2 text-sm">
+   734→                    {hospitals.map((h) => (
+   735→                      <option key={h.id} value={h.id}>{h.name_ar}</option>
+   736→                    ))}
+   737→                  </select>
+   738→                </div>
+   739→                <Button className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white h-11">إنشاء الحساب</Button>
+   740→                <p className="text-center text-xs text-gray-500">
+   741→                  لديك حساب؟ <button className="text-teal-600 font-semibold" onClick={() => navigate('login')}>تسجيل الدخول</button>
+   742→                </p>
+   743→              </CardContent>
+   744→            </Card>
+   745→          </div>
+   746→        )}
+   747→
+   748→        {/* QUEUE STATUS PAGE */}
+   749→        {currentPage === 'queue' && (
+   750→          <div className="max-w-lg mx-auto space-y-4">
+   751→            <div className="flex items-center gap-3">
+   752→              <Button variant="ghost" size="sm" onClick={() => navigate('home')}><ArrowLeft className="h-4 w-4" /></Button>
+   753→              <h2 className="text-xl font-bold">حالة الطابور</h2>
+   754→            </div>
+   755→            <Card>
+   756→              <CardContent className="p-6 text-center">
+   757→                <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-teal-50 text-4xl mb-4">
+   758→                  <TicketCheck className="h-10 w-10 text-teal-500" />
+   759→                </div>
+   760→                <p className="text-sm text-gray-500 mb-1">رقمك في الطابور</p>
+   761→                <p className="text-4xl font-bold text-teal-600 mb-4">D1-015</p>
+   762→                <div className="grid grid-cols-3 gap-3 mb-4">
+   763→                  <div className="rounded-lg bg-gray-50 p-3">
+   764→                    <p className="text-xs text-gray-500">يُخدم الآن</p>
+   765→                    <p className="text-lg font-bold text-blue-600">D1-012</p>
+   766→                  </div>
+   767→                  <div className="rounded-lg bg-gray-50 p-3">
+   768→                    <p className="text-xs text-gray-500">المتقدمون</p>
+   769→                    <p className="text-lg font-bold text-amber-600">3</p>
+   770→                  </div>
+   771→                  <div className="rounded-lg bg-gray-50 p-3">
+   772→                    <p className="text-xs text-gray-500">الانتظار المقدر</p>
+   773→                    <p className="text-lg font-bold">~22 د</p>
+   774→                  </div>
+   775→                </div>
+   776→                <div className="rounded-lg bg-amber-50 p-3 text-amber-700 text-xs">
+   777→                  ⏰ سيتم إرسال إشعار عند اقتراب دورك
+   778→                </div>
+   779→              </CardContent>
+   780→            </Card>
+   781→          </div>
+   782→        )}
+   783→
+   784→        {/* HOSPITAL PAGE */}
+   785→        {currentPage === 'hospital' && (
+   786→          <div className="space-y-6">
+   787→            <div className="flex items-center gap-3">
+   788→              <Button variant="ghost" size="sm" onClick={() => navigate('home')}><ArrowLeft className="h-4 w-4" /></Button>
+   789→              <h2 className="text-xl font-bold">{hospitals.find((h) => h.id === selectedHospital)?.name_ar}</h2>
+   790→            </div>
+   791→            <div className="grid sm:grid-cols-2 gap-4">
+   792→              <div className="rounded-xl bg-gradient-to-l from-teal-500/10 to-emerald-500/10 p-8 text-center">
+   793→                <span className="text-6xl">{hospitals.find((h) => h.id === selectedHospital)?.image}</span>
+   794→                <p className="mt-3 text-sm text-gray-500 flex items-center justify-center gap-1">
+   795→                  <MapPin className="h-3 w-3" /> {hospitals.find((h) => h.id === selectedHospital)?.location}
+   796→                </p>
+   797→              </div>
+   798→              <Card>
+   799→                <CardContent className="p-6 space-y-3">
+   800→                  <div className="flex justify-between text-sm">
+   801→                    <span className="text-gray-500">الأطباء</span>
+   802→                    <span className="font-bold">{hospitals.find((h) => h.id === selectedHospital)?.doctors}</span>
+   803→                  </div>
+   804→                  <div className="flex justify-between text-sm">
+   805→                    <span className="text-gray-500">الأقسام</span>
+   806→                    <span className="font-bold">{hospitals.find((h) => h.id === selectedHospital)?.departments}</span>
+   807→                  </div>
+   808→                  <div className="flex justify-between text-sm">
+   809→                    <span className="text-gray-500">التقييم</span>
+   810→                    <span className="font-bold text-amber-500 flex items-center gap-1">
+   811→                      <Star className="h-3.5 w-3.5 fill-current" /> {hospitals.find((h) => h.id === selectedHospital)?.rating}
+   812→                    </span>
+   813→                  </div>
+   814→                  <Separator />
+   815→                  <Button className="w-full bg-teal-500 text-white" onClick={() => navigate('doctors')}>
+   816→                    حجز موعد الآن
+   817→                  </Button>
+   818→                </CardContent>
+   819→              </Card>
+   820→            </div>
+   821→          </div>
+   822→        )}
+   823→
+   824→        {/* PROFILE PAGE */}
+   825→        {currentPage === 'profile' && (
+   826→          <div className="max-w-2xl mx-auto space-y-4">
+   827→            <h2 className="text-xl font-bold">الملف الشخصي</h2>
+   828→            <Card>
+   829→              <CardContent className="p-6">
+   830→                <div className="flex items-center gap-4 mb-6">
+   831→                  <div className="w-16 h-16 rounded-full bg-teal-100 flex items-center justify-center text-2xl">🤒</div>
+   832→                  <div>
+   833→                    <h3 className="font-bold">أحمد محمد علي</h3>
+   834→                    <p className="text-xs text-gray-500">ahmed@example.com • +966501234567</p>
+   835→                  </div>
+   836→                </div>
+   837→                <div className="grid sm:grid-cols-2 gap-4">
+   838→                  {[
+   839→                    { label: 'فصيلة الدم', value: 'A+', icon: '🩸' },
+   840→                    { label: 'تاريخ الميلاد', value: '1990-05-15', icon: '🎂' },
+   841→                    { label: 'الجنس', value: 'ذكر', icon: '👤' },
+   842→                    { label: 'العنوان', value: 'الرياض - حي العليا', icon: '📍' },
+   843→                  ].map((field) => (
+   844→                    <div key={field.label} className="flex items-center gap-2 p-3 rounded-lg border">
+   845→                      <span>{field.icon}</span>
+   846→                      <div>
+   847→                        <p className="text-[10px] text-gray-400">{field.label}</p>
+   848→                        <p className="text-sm font-semibold">{field.value}</p>
+   849→                      </div>
+   850→                    </div>
+   851→                  ))}
+   852→                </div>
+   853→                <div className="mt-4 flex gap-3">
+   854→                  <Button className="flex-1 bg-teal-500 text-white" onClick={() => navigate('records')}>
+   855→                    <FileText className="h-4 w-4 ml-1" /> السجلات الطبية
+   856→                  </Button>
+   857→                  <Button className="flex-1 bg-teal-500 text-white" onClick={() => navigate('prescriptions')}>
+   858→                    <Pill className="h-4 w-4 ml-1" /> الوصفات
+   859→                  </Button>
+   860→                </div>
+   861→              </CardContent>
+   862→            </Card>
+   863→          </div>
+   864→        )}
+   865→
+   866→        {/* RECORDS PAGE */}
+   867→        {currentPage === 'records' && (
+   868→          <div className="max-w-2xl mx-auto space-y-4">
+   869→            <Button variant="ghost" size="sm" onClick={() => navigate('profile')}><ArrowLeft className="h-4 w-4 ml-1" /> الملف الشخصي</Button>
+   870→            <h2 className="text-xl font-bold">السجلات الطبية</h2>
+   871→            {[
+   872→              { id: 1, date: '2026-08-14', doctor: 'د. سارة علي', diagnosis: 'أنفلونزا موسمية', dept: 'الباطنة' },
+   873→              { id: 2, date: '2026-07-20', doctor: 'د. خالد يوسف', diagnosis: 'ارتفاع ضغط الدم', dept: 'القلب' },
+   874→              { id: 3, date: '2026-06-10', doctor: 'د. منى عبدالله', diagnosis: 'التهاب جلد', dept: 'الجلدية' },
+   875→            ].map((r) => (
+   876→              <Card key={r.id}>
+   877→                <CardContent className="p-4">
+   878→                  <div className="flex justify-between items-start">
+   879→                    <div>
+   880→                      <p className="font-semibold text-sm">{r.diagnosis}</p>
+   881→                      <p className="text-xs text-gray-500 mt-1">{r.doctor} • {r.dept}</p>
+   882→                    </div>
+   883→                    <span className="text-xs text-gray-400">{r.date}</span>
+   884→                  </div>
+   885→                </CardContent>
+   886→              </Card>
+   887→            ))}
+   888→          </div>
+   889→        )}
+   890→
+   891→        {/* PRESCRIPTIONS PAGE */}
+   892→        {currentPage === 'prescriptions' && (
+   893→          <div className="max-w-2xl mx-auto space-y-4">
+   894→            <Button variant="ghost" size="sm" onClick={() => navigate('profile')}><ArrowLeft className="h-4 w-4 ml-1" /> الملف الشخصي</Button>
+   895→            <h2 className="text-xl font-bold">الوصفات الطبية</h2>
+   896→            {[
+   897→              { id: 1, date: '2026-08-14', doctor: 'د. سارة علي', items: ['باراسيتامول 500ملغ - 3 مرات يومياً', 'فيتامين C 1000ملغ - مرة يومياً'], status: 'مكتملة' },
+   898→              { id: 2, date: '2026-07-20', doctor: 'د. خالد يوسف', items: ['أملوديبين 5ملغ - مرة يومياً'], status: 'مكتملة' },
+   899→            ].map((p) => (
+   900→              <Card key={p.id}>
+   901→                <CardContent className="p-4">
+   902→                  <div className="flex justify-between items-start mb-3">
+   903→                    <div>
+   904→                      <p className="font-semibold text-sm">وصفة #{p.id}</p>
+   905→                      <p className="text-xs text-gray-500">{p.doctor} • {p.date}</p>
+   906→                    </div>
+   907→                    <Badge className="bg-green-50 text-green-600">{p.status}</Badge>
+   908→                  </div>
+   909→                  <div className="space-y-1">
+   910→                    {p.items.map((item, i) => (
+   911→                      <p key={i} className="text-xs text-gray-600 flex items-center gap-1">
+   912→                        <Pill className="h-3 w-3" /> {item}
+   913→                      </p>
+   914→                    ))}
+   915→                  </div>
+   916→                </CardContent>
+   917→              </Card>
+   918→            ))}
+   919→          </div>
+   920→        )}
+   921→      </main>
+   922→
+   923→      {/* ═══════════════════════════════════════════════════════ */}
+   924→      {/* FOOTER */}
+   925→      {/* ═══════════════════════════════════════════════════════ */}
+   926→      <footer className="mt-12 border-t bg-white">
+   927→        <div className="mx-auto max-w-6xl px-4 py-8">
+   928→          <div className="grid sm:grid-cols-3 gap-6">
+   929→            <div>
+   930→              <div className="flex items-center gap-2 mb-3">
+   931→                <span className="text-xl">🏥</span>
+   932→                <span className="font-bold text-teal-700">MediCare Pro</span>
+   933→              </div>
+   934→              <p className="text-xs text-gray-500">نظام متكامل لإدارة المستشفيات والعيادات - رعاية صحية أفضل للجميع</p>
+   935→            </div>
+   936→            <div>
+   937→              <h4 className="font-semibold text-sm mb-2">روابط سريعة</h4>
+   938→              <div className="space-y-1">
+   939→                <button onClick={() => navigate('home')} className="block text-xs text-gray-500 hover:text-teal-600">الرئيسية</button>
+   940→                <button onClick={() => navigate('doctors')} className="block text-xs text-gray-500 hover:text-teal-600">الأطباء</button>
+   941→                <button onClick={() => navigate('departments')} className="block text-xs text-gray-500 hover:text-teal-600">الأقسام</button>
+   942→              </div>
+   943→            </div>
+   944→            <div>
+   945→              <h4 className="font-semibold text-sm mb-2">تواصل معنا</h4>
+   946→              <div className="space-y-1">
+   947→                <p className="text-xs text-gray-500 flex items-center gap-1"><Phone className="h-3 w-3" /> 920012345</p>
+   948→                <p className="text-xs text-gray-500 flex items-center gap-1"><Mail className="h-3 w-3" /> info@medicare.com</p>
+   949→              </div>
+   950→            </div>
+   951→          </div>
+   952→          <Separator className="my-6" />
+   953→          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-400">
+   954→            <p>© 2026 MediCare Pro. جميع الحقوق محفوظة.</p>
+   955→            <div className="flex items-center gap-3">
+   956→              <span>Laravel 11 + Flutter</span>
+   957→              <span>•</span>
+   958→              <span>80+ API Endpoints</span>
+   959→            </div>
+   960→          </div>
+   961→        </div>
+   962→      </footer>
+   963→    </div>
+   964→  )
+   965→}
+   966→
+   967→/* ═══════════════════════════════════════════════════════════ */
+   968→/* Sub-components */
+   969→/* ═══════════════════════════════════════════════════════════ */
+   970→
+   971→function NavButton({ children, onClick, active }: { children: React.ReactNode; onClick: () => void; active?: boolean }) {
+   972→  return (
+   973→    <button
+   974→      onClick={onClick}
+   975→      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+   976→        active ? 'bg-teal-50 text-teal-700' : 'text-gray-600 hover:bg-gray-100'
+   977→      }`}
+   978→    >
+   979→      {children}
+   980→    </button>
+   981→  )
+   982→}
+   983→
+   984→function MobileNavButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+   985→  return (
+   986→    <button
+   987→      onClick={onClick}
+   988→      className="w-full text-right px-3 py-2.5 rounded-lg text-sm hover:bg-gray-100 transition-colors"
+   989→    >
+   990→      {children}
+   991→    </button>
+   992→  )
+   993→}
+   994→

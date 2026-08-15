@@ -1,931 +1,1145 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
-import { serveStatic } from 'hono/bun'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient({
+  datasourceUrl: 'file:/home/z/my-project/db/custom.db',
+})
 
 const app = new Hono()
 
-app.use('*', cors())
+// ============================================================
+// API ENDPOINTS
+// ============================================================
 
-// ═══════════════════════════════════════════════════════════
-// ADMIN DASHBOARD API ENDPOINTS
-// ═══════════════════════════════════════════════════════════
-
+// Dashboard Stats
 app.get('/api/dashboard/stats', async (c) => {
-  return c.json({
-    success: true,
-    data: {
-      total_patients: 1247,
-      total_doctors: 42,
-      today_appointments: 89,
-      pending_queue: 23,
-      total_revenue: 284500,
-      monthly_growth: 12.5,
-      active_departments: 8,
-      bed_occupancy: 73,
-      today_completed: 56,
-      today_cancelled: 6,
-      avg_wait_time: 18,
-      patient_satisfaction: 4.6,
+  try {
+    const [hospitals, doctors, appointments, completedAppointments] = await Promise.all([
+      prisma.hospital.count({ where: { active: true } }),
+      prisma.doctor.count({ where: { available: true } }),
+      prisma.appointment.count({ where: { date: new Date().toISOString().split('T')[0] } }),
+      prisma.appointment.findMany({ where: { status: 'completed' } }),
+    ])
+    const revenue = completedAppointments.reduce((sum, a) => {
+      return sum + (a.doctorId ? 0 : 0)
+    }, 0)
+    const totalRevenue = await prisma.doctor.aggregate({
+      _sum: { price: true },
+    })
+    const completedCount = await prisma.appointment.count({ where: { status: 'completed' } })
+    return c.json({
+      totalHospitals: hospitals,
+      totalDoctors: doctors,
+      todayAppointments: appointments,
+      totalRevenue: (totalRevenue._sum.price || 0) * completedCount || 0,
+      totalDepartments: await prisma.department.count({ where: { active: true } }),
+      totalAppointments: await prisma.appointment.count(),
+    })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// Hospitals CRUD
+app.get('/api/hospitals', async (c) => {
+  try {
+    const hospitals = await prisma.hospital.findMany({
+      include: {
+        _count: { select: { departmentsList: true, doctorsList: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    return c.json(hospitals)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+app.post('/api/hospitals', async (c) => {
+  try {
+    const body = await c.req.json()
+    const hospital = await prisma.hospital.create({ data: body })
+    return c.json(hospital, 201)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+app.put('/api/hospitals/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const hospital = await prisma.hospital.update({ where: { id }, data: body })
+    return c.json(hospital)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+app.delete('/api/hospitals/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    await prisma.appointment.deleteMany({ where: { hospitalId: id } })
+    const doctors = await prisma.doctor.findMany({ where: { hospitalId: id }, select: { id: true } })
+    for (const doc of doctors) {
+      await prisma.schedule.deleteMany({ where: { doctorId: doc.id } })
+      await prisma.appointment.deleteMany({ where: { doctorId: doc.id } })
     }
-  })
+    await prisma.doctor.deleteMany({ where: { hospitalId: id } })
+    await prisma.department.deleteMany({ where: { hospitalId: id } })
+    await prisma.hospital.delete({ where: { id } })
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
 })
 
-app.get('/api/dashboard/revenue', async (c) => {
-  return c.json({
-    success: true,
-    data: {
-      months: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس'],
-      revenue: [185000, 210000, 195000, 245000, 260000, 278000, 290000, 284500],
-      expenses: [120000, 135000, 128000, 145000, 155000, 162000, 170000, 168000],
-    }
-  })
-})
-
-app.get('/api/dashboard/appointments-today', async (c) => {
-  return c.json({
-    success: true,
-    data: [
-      { id: 1, patient: 'أحمد محمد', doctor: 'د. سارة علي', department: 'بطانة', time: '08:00', status: 'completed', type: 'consultation' },
-      { id: 2, patient: 'فاطمة حسن', doctor: 'د. خالد يوسف', department: 'قلب', time: '08:30', status: 'in_progress', type: 'follow_up' },
-      { id: 3, patient: 'عمر أحمد', doctor: 'د. سارة علي', department: 'بطانة', time: '09:00', status: 'waiting', type: 'consultation' },
-      { id: 4, patient: 'نور الدين', doctor: 'د. منى عبدالله', department: 'أطفال', time: '09:30', status: 'waiting', type: 'consultation' },
-      { id: 5, patient: 'سلمى خالد', doctor: 'د. خالد يوسف', department: 'قلب', time: '10:00', status: 'confirmed', type: 'follow_up' },
-      { id: 6, patient: 'يوسف إبراهيم', doctor: 'د. محمد رضا', department: 'عظام', time: '10:30', status: 'confirmed', type: 'consultation' },
-      { id: 7, patient: 'هدى محمد', doctor: 'د. منى عبدالله', department: 'أطفال', time: '11:00', status: 'pending', type: 'consultation' },
-      { id: 8, patient: 'محمود علي', doctor: 'د. سارة علي', department: 'بطانة', time: '11:30', status: 'pending', type: 'follow_up' },
-    ]
-  })
-})
-
-app.get('/api/dashboard/queue', async (c) => {
-  return c.json({
-    success: true,
-    data: {
-      department_id: 1,
-      department_name: 'القلب والأوعية الدموية',
-      current_serving: 'D1-012',
-      next_number: 'D1-013',
-      waiting_count: 8,
-      avg_wait_minutes: 22,
-      patients: [
-        { queue_number: 'D1-009', patient: 'أحمد محمد', status: 'in_progress', wait_time: 0, priority: false },
-        { queue_number: 'D1-010', patient: 'فاطمة حسن', status: 'waiting', wait_time: 15, priority: false },
-        { queue_number: 'D1-011', patient: 'عمر أحمد', status: 'waiting', wait_time: 30, priority: true },
-        { queue_number: 'D1-012', patient: 'نور الدين', status: 'waiting', wait_time: 45, priority: false },
-        { queue_number: 'D1-013', patient: 'سلمى خالد', status: 'waiting', wait_time: 52, priority: false },
-      ]
-    }
-  })
-})
-
+// Doctors CRUD
 app.get('/api/doctors', async (c) => {
-  return c.json({
-    success: true,
-    data: [
-      { id: 1, name: 'د. سارة علي', specialty: 'أمراض البطانة', department: 'الباطنة', patients_count: 342, rating: 4.8, status: 'active', schedule: 'السبت - الأربعاء' },
-      { id: 2, name: 'د. خالد يوسف', specialty: 'جراحة القلب', department: 'القلب', patients_count: 289, rating: 4.9, status: 'active', schedule: 'الأحد - الخميس' },
-      { id: 3, name: 'د. منى عبدالله', specialty: 'طب الأطفال', department: 'الأطفال', patients_count: 198, rating: 4.7, status: 'active', schedule: 'السبت - الخميس' },
-      { id: 4, name: 'د. محمد رضا', specialty: 'جراحة العظام', department: 'العظام', patients_count: 156, rating: 4.5, status: 'active', schedule: 'الإثنين - الجمعة' },
-      { id: 5, name: 'د. هالة سامي', specialty: 'أمراض جلدية', department: 'الجلدية', patients_count: 267, rating: 4.6, status: 'on_leave', schedule: 'السبت - الأربعاء' },
-      { id: 6, name: 'د. عمرو حسين', specialty: 'طب العيون', department: 'العيون', patients_count: 312, rating: 4.4, status: 'active', schedule: 'الأحد - الخميس' },
-    ]
-  })
+  try {
+    const hospitalId = c.req.query('hospitalId')
+    const departmentId = c.req.query('departmentId')
+    const where: any = {}
+    if (hospitalId) where.hospitalId = hospitalId
+    if (departmentId) where.departmentId = departmentId
+    const doctors = await prisma.doctor.findMany({
+      where,
+      include: {
+        hospital: { select: { name: true, nameEn: true } },
+        department: { select: { name: true, nameEn: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    return c.json(doctors)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
 })
 
+app.post('/api/doctors', async (c) => {
+  try {
+    const body = await c.req.json()
+    const doctor = await prisma.doctor.create({ data: body })
+    return c.json(doctor, 201)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+app.put('/api/doctors/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const doctor = await prisma.doctor.update({ where: { id }, data: body })
+    return c.json(doctor)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+app.delete('/api/doctors/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    await prisma.schedule.deleteMany({ where: { doctorId: id } })
+    await prisma.appointment.deleteMany({ where: { doctorId: id } })
+    await prisma.doctor.delete({ where: { id } })
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// Appointments
+app.get('/api/appointments', async (c) => {
+  try {
+    const status = c.req.query('status')
+    const where: any = {}
+    if (status) where.status = status
+    const appointments = await prisma.appointment.findMany({
+      where,
+      include: {
+        doctor: {
+          include: {
+            hospital: { select: { name: true, nameEn: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    return c.json(appointments)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+app.put('/api/appointments/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const appointment = await prisma.appointment.update({ where: { id }, data: body })
+    return c.json(appointment)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+app.delete('/api/appointments/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    await prisma.appointment.delete({ where: { id } })
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// Departments
 app.get('/api/departments', async (c) => {
-  return c.json({
-    success: true,
-    data: [
-      { id: 1, name_ar: 'القلب والأوعية الدموية', name_en: 'Cardiology', doctors_count: 6, patients_today: 18, status: 'active' },
-      { id: 2, name_ar: 'الباطنة', name_en: 'Internal Medicine', doctors_count: 5, patients_today: 24, status: 'active' },
-      { id: 3, name_ar: 'طب الأطفال', name_en: 'Pediatrics', doctors_count: 4, patients_today: 15, status: 'active' },
-      { id: 4, name_ar: 'جراحة العظام', name_en: 'Orthopedics', doctors_count: 3, patients_today: 12, status: 'active' },
-      { id: 5, name_ar: 'الأمراض الجلدية', name_en: 'Dermatology', doctors_count: 3, patients_today: 9, status: 'active' },
-      { id: 6, name_ar: 'طب العيون', name_en: 'Ophthalmology', doctors_count: 4, patients_today: 11, status: 'active' },
-      { id: 7, name_ar: 'الأنف والأذن والحنجرة', name_en: 'ENT', doctors_count: 3, patients_today: 7, status: 'active' },
-      { id: 8, name_ar: 'الأشعة والتشخيص', name_en: 'Radiology', doctors_count: 2, patients_today: 20, status: 'active' },
-    ]
-  })
+  try {
+    const departments = await prisma.department.findMany({
+      include: {
+        hospital: { select: { name: true, nameEn: true } },
+        _count: { select: { doctors: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    return c.json(departments)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
 })
 
-app.get('/api/patients', async (c) => {
-  return c.json({
-    success: true,
-    data: [
-      { id: 1, name: 'أحمد محمد علي', phone: '+966501234567', email: 'ahmed@example.com', last_visit: '2026-08-14', total_visits: 12, blood_type: 'A+', status: 'active' },
-      { id: 2, name: 'فاطمة حسن محمود', phone: '+966509876543', email: 'fatma@example.com', last_visit: '2026-08-14', total_visits: 8, blood_type: 'O+', status: 'active' },
-      { id: 3, name: 'عمر أحمد سعيد', phone: '+966503456789', email: 'omar@example.com', last_visit: '2026-08-13', total_visits: 5, blood_type: 'B+', status: 'active' },
-      { id: 4, name: 'نور الدين محمد', phone: '+966507654321', email: 'nour@example.com', last_visit: '2026-08-12', total_visits: 15, blood_type: 'AB+', status: 'active' },
-      { id: 5, name: 'سلمى خالد عبدالله', phone: '+966502345678', email: 'salma@example.com', last_visit: '2026-08-10', total_visits: 3, blood_type: 'O-', status: 'inactive' },
-    ]
-  })
-})
+// ============================================================
+// HTML DASHBOARD
+// ============================================================
 
-app.get('/api/reports/doctor-performance', async (c) => {
-  return c.json({
-    success: true,
-    data: [
-      { doctor: 'د. سارة علي', appointments: 156, completion_rate: 94, avg_rating: 4.8, revenue: 78000 },
-      { doctor: 'د. خالد يوسف', appointments: 132, completion_rate: 97, avg_rating: 4.9, revenue: 92400 },
-      { doctor: 'د. منى عبدالله', appointments: 98, completion_rate: 91, avg_rating: 4.7, revenue: 49000 },
-      { doctor: 'د. محمد رضا', appointments: 87, completion_rate: 89, avg_rating: 4.5, revenue: 52200 },
-      { doctor: 'د. هالة سامي', appointments: 112, completion_rate: 93, avg_rating: 4.6, revenue: 56000 },
-    ]
-  })
-})
-
-app.get('/api/medications/inventory', async (c) => {
-  return c.json({
-    success: true,
-    data: [
-      { id: 1, name_ar: 'باراسيتامول 500ملغ', name_en: 'Paracetamol 500mg', stock: 2500, min_stock: 500, status: 'in_stock', category: 'مسكنات', expiry_date: '2027-06-15' },
-      { id: 2, name_ar: 'أموكسيسيلين 250ملغ', name_en: 'Amoxicillin 250mg', stock: 180, min_stock: 200, status: 'low_stock', category: 'مضادات حيوية', expiry_date: '2026-12-01' },
-      { id: 3, name_ar: 'أسيبروفين 400ملغ', name_en: 'Ibuprofen 400mg', stock: 1200, min_stock: 300, status: 'in_stock', category: 'مضادات التهاب', expiry_date: '2027-03-20' },
-      { id: 4, name_ar: 'أوميبرازول 20ملغ', name_en: 'Omeprazole 20mg', stock: 50, min_stock: 100, status: 'critical', category: 'معدة', expiry_date: '2026-09-30' },
-      { id: 5, name_ar: 'ميتفورمين 500ملغ', name_en: 'Metformin 500mg', stock: 800, min_stock: 200, status: 'in_stock', category: 'سكر', expiry_date: '2027-08-10' },
-    ]
-  })
-})
-
-app.get('/api/notifications', async (c) => {
-  return c.json({
-    success: true,
-    data: [
-      { id: 1, title_ar: 'موعد جديد محجوز', title_en: 'New Appointment Booked', body_ar: 'المريض أحمد محمد حجز موعد مع د. سارة علي', time: '5 دقائق', type: 'appointment', is_read: false },
-      { id: 2, title_ar: 'تنبيه مخزون منخفض', title_en: 'Low Stock Alert', body_ar: 'أموكسيسيلين 250ملغ وصل للحد الأدنى', time: '15 دقيقة', type: 'inventory', is_read: false },
-      { id: 3, title_ar: 'وصفة جاهزة للصرف', title_en: 'Prescription Ready', body_ar: 'وصفة #1234 جاهزة للصرف للصيدلية', time: '30 دقيقة', type: 'prescription', is_read: true },
-      { id: 4, title_ar: 'تقرير يومي جاهز', title_en: 'Daily Report Ready', body_ar: 'تقرير أداء المستشفى ليوم 2026-08-14', time: 'ساعة', type: 'report', is_read: true },
-    ]
-  })
-})
-
-// ═══════════════════════════════════════════════════════════
-// SERVE THE ADMIN DASHBOARD HTML
-// ═══════════════════════════════════════════════════════════
-
-const adminHTML = `<!DOCTYPE html>
+const HTML = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>لوحة الإدارة - MediCare Pro</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<title>MediCare Pro - لوحة التحكم</title>
 <style>
-* { font-family: 'Cairo', sans-serif; }
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
-::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #64748b; }
-.stat-card { transition: all 0.3s ease; }
-.stat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
-.sidebar-item { transition: all 0.2s ease; }
-.sidebar-item:hover, .sidebar-item.active { background: rgba(255,255,255,0.15); border-radius: 8px; }
-.table-row:hover { background: #f8fafc; }
-.badge { padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-.queue-card { transition: all 0.3s ease; }
-.queue-card:hover { transform: scale(1.02); }
-.pulse-dot { animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-.counter { font-variant-numeric: tabular-nums; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --sidebar-bg:#0f172a;
+  --sidebar-text:#cbd5e1;
+  --sidebar-active:#10b981;
+  --main-bg:#f8fafc;
+  --card-bg:#ffffff;
+  --primary:#10b981;
+  --primary-hover:#059669;
+  --accent:#14b8a6;
+  --text-primary:#1e293b;
+  --text-secondary:#64748b;
+  --border:#e2e8f0;
+  --danger:#ef4444;
+  --danger-hover:#dc2626;
+  --warning:#f59e0b;
+  --info:#3b82f6;
+  --success:#10b981;
+  --radius:12px;
+  --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.06);
+  --shadow-lg:0 10px 15px -3px rgba(0,0,0,0.1),0 4px 6px -4px rgba(0,0,0,0.1);
+}
+html[dir="ltr"]{direction:ltr;text-align:left}
+html[dir="rtl"]{direction:rtl;text-align:right}
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--main-bg);color:var(--text-primary);line-height:1.6;min-height:100vh;display:flex;overflow-x:hidden}
+a{text-decoration:none;color:inherit}
+button{cursor:pointer;font-family:inherit}
+input,select,textarea{font-family:inherit;font-size:14px}
+
+/* Sidebar */
+.sidebar{width:260px;min-height:100vh;background:var(--sidebar-bg);color:var(--sidebar-text);display:flex;flex-direction:column;position:fixed;top:0;right:0;z-index:50;transition:transform .3s ease}
+html[dir="ltr"] .sidebar{right:auto;left:0}
+.sidebar-header{padding:24px 20px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.sidebar-logo{font-size:22px;font-weight:800;color:#fff;display:flex;align-items:center;gap:10px}
+.sidebar-logo svg{flex-shrink:0}
+.sidebar-logo span{background:linear-gradient(135deg,var(--primary),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sidebar-subtitle{font-size:12px;color:var(--sidebar-text);opacity:.6;margin-top:4px}
+.sidebar-nav{flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:4px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;color:var(--sidebar-text);cursor:pointer;transition:all .2s ease;font-size:14px;font-weight:500;border:none;background:none;width:100%;text-align:inherit}
+.nav-item:hover{background:rgba(255,255,255,0.06);color:#fff}
+.nav-item.active{background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;box-shadow:0 4px 12px rgba(16,185,129,0.3)}
+.nav-item svg{flex-shrink:0;opacity:.7}
+.nav-item.active svg,.nav-item:hover svg{opacity:1}
+.sidebar-footer{padding:16px 12px;border-top:1px solid rgba(255,255,255,0.08)}
+.lang-toggle{display:flex;background:rgba(255,255,255,0.06);border-radius:8px;overflow:hidden}
+.lang-btn{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:500;border:none;background:none;color:var(--sidebar-text);cursor:pointer;transition:all .2s}
+.lang-btn.active{background:var(--primary);color:#fff}
+
+/* Main Content */
+.main{flex:1;margin-right:260px;min-height:100vh;transition:margin .3s ease}
+html[dir="ltr"] .main{margin-right:0;margin-left:260px}
+.topbar{background:var(--card-bg);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40}
+.hamburger{display:none;background:none;border:none;font-size:24px;color:var(--text-primary);padding:4px}
+.topbar-title{font-size:18px;font-weight:700;color:var(--text-primary)}
+.topbar-actions{display:flex;align-items:center;gap:12px}
+.content{padding:24px}
+
+/* Cards */
+.card{background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow)}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:24px}
+.stat-card{padding:20px;display:flex;align-items:center;gap:16px}
+.stat-icon{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stat-icon.green{background:rgba(16,185,129,0.1);color:var(--primary)}
+.stat-icon.teal{background:rgba(20,184,166,0.1);color:var(--accent)}
+.stat-icon.blue{background:rgba(59,130,246,0.1);color:var(--info)}
+.stat-icon.amber{background:rgba(245,158,11,0.1);color:var(--warning)}
+.stat-value{font-size:28px;font-weight:800;color:var(--text-primary);line-height:1.2}
+.stat-label{font-size:13px;color:var(--text-secondary);margin-top:2px}
+
+/* Table */
+.table-container{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead{background:#f1f5f9}
+th{padding:12px 16px;text-align:right;font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+html[dir="ltr"] th{text-align:left}
+td{padding:12px 16px;border-top:1px solid var(--border);font-size:14px;color:var(--text-primary);vertical-align:middle}
+tbody tr{transition:background .15s}
+tbody tr:nth-child(even){background:#f8fafc}
+tbody tr:hover{background:#f0fdf4}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:8px;font-size:14px;font-weight:600;border:none;transition:all .2s;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-hover);box-shadow:0 4px 12px rgba(16,185,129,0.3)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:var(--danger-hover)}
+.btn-secondary{background:#f1f5f9;color:var(--text-primary);border:1px solid var(--border)}
+.btn-secondary:hover{background:#e2e8f0}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-icon{padding:6px;border-radius:6px;border:none;background:none;color:var(--text-secondary);transition:all .15s;display:inline-flex;align-items:center;justify-content:center}
+.btn-icon:hover{background:#f1f5f9;color:var(--text-primary)}
+.btn-icon.danger:hover{background:#fef2f2;color:var(--danger)}
+
+/* Badges */
+.badge{display:inline-flex;align-items:center;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.badge-pending{background:#fef3c7;color:#92400e}
+.badge-confirmed{background:#dbeafe;color:#1e40af}
+.badge-completed{background:#d1fae5;color:#065f46}
+.badge-cancelled{background:#fee2e2;color:#991b1b}
+
+/* Modal */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--card-bg);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:100%;max-width:560px;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:transform .25s}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-header h3{font-size:18px;font-weight:700}
+.modal-body{padding:24px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:12px;justify-content:flex-end}
+html[dir="rtl"] .modal-footer{justify-content:flex-start}
+
+/* Forms */
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:6px}
+.form-input,.form-select,.form-textarea{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;color:var(--text-primary);background:#fff;transition:border-color .2s,box-shadow .2s;outline:none}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(16,185,129,0.1)}
+.form-textarea{resize:vertical;min-height:80px}
+
+/* Filter Bar */
+.filter-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px}
+.filter-bar .form-select{width:auto;min-width:180px}
+
+/* Page Header */
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.page-header h2{font-size:22px;font-weight:700}
+
+/* Department Grid */
+.dept-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.dept-card{padding:24px;text-align:center;transition:transform .2s,box-shadow .2s}
+.dept-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.dept-card .dept-icon{width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(20,184,166,0.1));display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:24px}
+.dept-card .dept-name{font-size:16px;font-weight:700;margin-bottom:4px}
+.dept-card .dept-hospital{font-size:13px;color:var(--text-secondary);margin-bottom:8px}
+.dept-card .dept-count{font-size:12px;color:var(--primary);font-weight:600}
+
+/* Toast */
+.toast-container{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:10px;font-size:14px;font-weight:500;color:#fff;box-shadow:var(--shadow-lg);animation:slideIn .3s ease,fadeOut .3s ease 2.7s}
+.toast.success{background:var(--primary)}
+.toast.error{background:var(--danger)}
+@keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeOut{from{opacity:1}to{opacity:0}}
+
+/* Section Header */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.section-header h3{font-size:16px;font-weight:700}
+
+/* Quick Actions */
+.quick-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
+
+/* Loading Spinner */
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Rating Stars */
+.rating{display:inline-flex;align-items:center;gap:2px;color:var(--warning)}
+.rating svg{width:14px;height:14px;fill:currentColor}
+
+/* Empty State */
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-secondary)}
+.empty-state svg{margin:0 auto 16px;opacity:.3}
+.empty-state p{font-size:15px}
+
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{transform:translateX(100%)}
+  html[dir="ltr"] .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-right:0!important;margin-left:0!important}
+  .hamburger{display:block}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .content{padding:16px}
+  .page-header{flex-direction:column;align-items:flex-start}
+  .dept-grid{grid-template-columns:1fr}
+  .filter-bar{flex-direction:column;align-items:stretch}
+  .filter-bar .form-select{width:100%}
+}
+@media(max-width:480px){
+  .stats-grid{grid-template-columns:1fr}
+}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+
+/* Sidebar backdrop mobile */
+.sidebar-backdrop{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:45}
+.sidebar-backdrop.open{display:block}
+
+/* Status actions */
+.status-actions{display:flex;gap:4px;flex-wrap:wrap}
 </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body>
+<!-- Sidebar Backdrop (mobile) -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
 
-<div class="flex h-screen overflow-hidden">
-  <!-- Sidebar -->
-  <aside class="w-64 bg-gradient-to-b from-teal-700 to-teal-900 text-white flex flex-col shrink-0 shadow-xl">
-    <div class="p-5 border-b border-teal-600">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">🏥</div>
-        <div>
-          <h1 class="font-bold text-sm">MediCare Pro</h1>
-          <p class="text-[10px] text-teal-200">لوحة إدارة المستشفى</p>
-        </div>
-      </div>
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="url(#lg)"/><path d="M10 16h12M16 10v12" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><defs><linearGradient id="lg" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#10b981"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs></svg>
+      <span>MediCare Pro</span>
     </div>
-    
-    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
-      <div class="sidebar-item active flex items-center gap-3 px-3 py-2.5 cursor-pointer" data-page="dashboard">
-        <span>📊</span><span class="text-sm">لوحة التحكم</span>
-      </div>
-      <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 cursor-pointer" data-page="appointments">
-        <span>📅</span><span class="text-sm">المواعيد</span>
-      </div>
-      <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 cursor-pointer" data-page="queue">
-        <span>🎫</span><span class="text-sm">إدارة الطوابير</span>
-      </div>
-      <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 cursor-pointer" data-page="doctors">
-        <span>👨‍⚕️</span><span class="text-sm">الأطباء</span>
-      </div>
-      <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 cursor-pointer" data-page="patients">
-        <span>🤒</span><span class="text-sm">المرضى</span>
-      </div>
-      <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 cursor-pointer" data-page="departments">
-        <span>🏢</span><span class="text-sm">الأقسام</span>
-      </div>
-      <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 cursor-pointer" data-page="pharmacy">
-        <span>💊</span><span class="text-sm">الصيدلية</span>
-      </div>
-      <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 cursor-pointer" data-page="reports">
-        <span>📈</span><span class="text-sm">التقارير</span>
-      </div>
-      
-      <div class="mt-4 pt-4 border-t border-teal-600">
-        <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 cursor-pointer" data-page="settings">
-          <span>⚙️</span><span class="text-sm">الإعدادات</span>
-        </div>
-      </div>
-    </nav>
-    
-    <div class="p-4 border-t border-teal-600">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 bg-teal-600 rounded-full flex items-center justify-center text-sm font-bold">م</div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold truncate">مدير المستشفى</p>
-          <p class="text-[10px] text-teal-200 truncate">admin@hospital.com</p>
-        </div>
-      </div>
+    <div class="sidebar-subtitle" data-i18n="dashboard_subtitle">لوحة التحكم</div>
+  </div>
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span data-i18n="nav_dashboard">لوحة التحكم</span>
+    </button>
+    <button class="nav-item" data-page="hospitals" onclick="navigateTo('hospitals')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
+      <span data-i18n="nav_hospitals">المستشفيات</span>
+    </button>
+    <button class="nav-item" data-page="doctors" onclick="navigateTo('doctors')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span data-i18n="nav_doctors">الأطباء</span>
+    </button>
+    <button class="nav-item" data-page="appointments" onclick="navigateTo('appointments')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span data-i18n="nav_appointments">المواعيد</span>
+    </button>
+    <button class="nav-item" data-page="departments" onclick="navigateTo('departments')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span data-i18n="nav_departments">الأقسام</span>
+    </button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="langAr" onclick="setLang('ar')">عربي</button>
+      <button class="lang-btn" id="langEn" onclick="setLang('en')">English</button>
     </div>
-  </aside>
+  </div>
+</aside>
 
-  <!-- Main Content -->
-  <div class="flex-1 flex flex-col overflow-hidden">
-    <!-- Top Bar -->
-    <header class="h-14 bg-white border-b flex items-center justify-between px-6 shrink-0">
-      <div class="flex items-center gap-4">
-        <h2 class="text-lg font-bold text-gray-800" id="page-title">لوحة التحكم</h2>
-        <span class="text-xs text-gray-400" id="current-date"></span>
-      </div>
-      <div class="flex items-center gap-4">
-        <div class="relative">
-          <button class="p-2 hover:bg-gray-100 rounded-lg relative" onclick="toggleNotifications()">
-            🔔
-            <span class="absolute -top-0.5 -left-0.5 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center pulse-dot">3</span>
-          </button>
-          <div id="notif-panel" class="hidden absolute left-0 top-10 w-80 bg-white rounded-xl shadow-2xl border z-50">
-            <div class="p-3 border-b font-semibold text-sm">الإشعارات</div>
-            <div id="notif-list" class="max-h-64 overflow-y-auto"></div>
-          </div>
-        </div>
-        <a href="/" class="text-xs bg-teal-50 text-teal-700 px-3 py-1.5 rounded-lg hover:bg-teal-100 transition">
-          ← الموقع العام
-        </a>
-      </div>
-    </header>
+<!-- Main -->
+<div class="main">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="hamburger" onclick="toggleSidebar()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="topbar-title" id="pageTitle" data-i18n="nav_dashboard">لوحة التحكم</div>
+    </div>
+    <div class="topbar-actions">
+      <span style="font-size:13px;color:var(--text-secondary)" id="currentDate"></span>
+    </div>
+  </header>
+  <main class="content" id="appContent">
+    <div style="text-align:center;padding:60px"><div class="spinner" style="width:40px;height:40px;border-width:3px"></div></div>
+  </main>
+</div>
 
-    <!-- Content Area -->
-    <main class="flex-1 overflow-y-auto p-6" id="content-area">
-      <!-- Dashboard Page -->
-      <div id="page-dashboard" class="page-content">
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div class="stat-card bg-white rounded-xl p-4 border shadow-sm">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-2xl">👥</span>
-              <span class="badge bg-blue-50 text-blue-600">+12.5%</span>
-            </div>
-            <p class="text-2xl font-bold counter" data-target="1247">0</p>
-            <p class="text-xs text-gray-500 mt-1">إجمالي المرضى</p>
-          </div>
-          <div class="stat-card bg-white rounded-xl p-4 border shadow-sm">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-2xl">👨‍⚕️</span>
-              <span class="badge bg-green-50 text-green-600">+3</span>
-            </div>
-            <p class="text-2xl font-bold counter" data-target="42">0</p>
-            <p class="text-xs text-gray-500 mt-1">الأطباء النشطين</p>
-          </div>
-          <div class="stat-card bg-white rounded-xl p-4 border shadow-sm">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-2xl">📅</span>
-              <span class="badge bg-amber-50 text-amber-600">اليوم</span>
-            </div>
-            <p class="text-2xl font-bold counter" data-target="89">0</p>
-            <p class="text-xs text-gray-500 mt-1">مواعيد اليوم</p>
-          </div>
-          <div class="stat-card bg-white rounded-xl p-4 border shadow-sm">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-2xl">💰</span>
-              <span class="badge bg-emerald-50 text-emerald-600">+8.2%</span>
-            </div>
-            <p class="text-2xl font-bold counter" data-target="284500">0</p>
-            <p class="text-xs text-gray-500 mt-1">إيرادات الشهر (ر.س)</p>
-          </div>
-        </div>
-
-        <!-- Revenue Chart Area -->
-        <div class="grid lg:grid-cols-3 gap-4 mb-6">
-          <div class="lg:col-span-2 bg-white rounded-xl p-5 border shadow-sm">
-            <h3 class="font-semibold text-sm mb-4">📈 الإيرادات والمصروفات (8 أشهر)</h3>
-            <div class="flex items-end gap-2 h-48" id="revenue-chart"></div>
-            <div class="flex justify-center gap-4 mt-3 text-xs">
-              <span class="flex items-center gap-1"><span class="w-3 h-3 bg-teal-500 rounded-full"></span>الإيرادات</span>
-              <span class="flex items-center gap-1"><span class="w-3 h-3 bg-gray-300 rounded-full"></span>المصروفات</span>
-            </div>
-          </div>
-          <div class="bg-white rounded-xl p-5 border shadow-sm">
-            <h3 class="font-semibold text-sm mb-4">📊 حالة اليوم</h3>
-            <div class="space-y-3">
-              <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">مكتملة</span>
-                <span class="font-bold text-green-600">56</span>
-              </div>
-              <div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-green-500 rounded-full h-2" style="width:63%"></div></div>
-              <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">قيد التنفيذ</span>
-                <span class="font-bold text-blue-600">18</span>
-              </div>
-              <div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-blue-500 rounded-full h-2" style="width:20%"></div></div>
-              <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">في الانتظار</span>
-                <span class="font-bold text-amber-600">9</span>
-              </div>
-              <div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-amber-500 rounded-full h-2" style="width:10%"></div></div>
-              <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">ملغاة</span>
-                <span class="font-bold text-red-600">6</span>
-              </div>
-              <div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-red-500 rounded-full h-2" style="width:7%"></div></div>
-            </div>
-            <div class="mt-4 pt-4 border-t">
-              <div class="flex justify-between text-xs">
-                <span class="text-gray-500">متوسط وقت الانتظار</span>
-                <span class="font-bold">18 دقيقة</span>
-              </div>
-              <div class="flex justify-between text-xs mt-1">
-                <span class="text-gray-500">رضا المرضى</span>
-                <span class="font-bold text-amber-500">⭐ 4.6/5</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Today's Appointments Table -->
-        <div class="bg-white rounded-xl border shadow-sm">
-          <div class="p-5 border-b flex justify-between items-center">
-            <h3 class="font-semibold text-sm">📅 مواعيد اليوم</h3>
-            <span class="badge bg-teal-50 text-teal-600">89 موعد</span>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead class="bg-gray-50 text-gray-500 text-xs">
-                <tr>
-                  <th class="text-right p-3">#</th>
-                  <th class="text-right p-3">المريض</th>
-                  <th class="text-right p-3">الطبيب</th>
-                  <th class="text-right p-3">القسم</th>
-                  <th class="text-right p-3">الوقت</th>
-                  <th class="text-right p-3">النوع</th>
-                  <th class="text-right p-3">الحالة</th>
-                </tr>
-              </thead>
-              <tbody id="appointments-table"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Queue Page -->
-      <div id="page-queue" class="page-content hidden">
-        <div class="grid lg:grid-cols-3 gap-4 mb-6">
-          <div class="bg-white rounded-xl p-5 border shadow-sm text-center">
-            <p class="text-4xl font-bold text-teal-600">D1-012</p>
-            <p class="text-xs text-gray-500 mt-1">يُخدم الآن</p>
-          </div>
-          <div class="bg-white rounded-xl p-5 border shadow-sm text-center">
-            <p class="text-4xl font-bold text-blue-600">D1-013</p>
-            <p class="text-xs text-gray-500 mt-1">التالي</p>
-          </div>
-          <div class="bg-white rounded-xl p-5 border shadow-sm text-center">
-            <p class="text-4xl font-bold text-amber-600">8</p>
-            <p class="text-xs text-gray-500 mt-1">في الانتظار</p>
-          </div>
-        </div>
-
-        <div class="grid lg:grid-cols-2 gap-4 mb-6">
-          <div class="bg-white rounded-xl p-5 border shadow-sm">
-            <h3 class="font-semibold text-sm mb-4">🎫 قائمة الانتظار - القلب والأوعية</h3>
-            <div id="queue-list" class="space-y-2"></div>
-          </div>
-          <div class="bg-white rounded-xl p-5 border shadow-sm">
-            <h3 class="font-semibold text-sm mb-4">🎬 إجراءات سريعة</h3>
-            <div class="grid grid-cols-2 gap-3">
-              <button class="bg-teal-500 hover:bg-teal-600 text-white rounded-xl p-4 text-center transition">
-                <p class="text-2xl mb-1">📞</p>
-                <p class="text-xs font-semibold">استدعاء التالي</p>
-              </button>
-              <button class="bg-amber-500 hover:bg-amber-600 text-white rounded-xl p-4 text-center transition">
-                <p class="text-2xl mb-1">⏭️</p>
-                <p class="text-xs font-semibold">تخطي المريض</p>
-              </button>
-              <button class="bg-blue-500 hover:bg-blue-600 text-white rounded-xl p-4 text-center transition">
-                <p class="text-2xl mb-1">🔄</p>
-                <p class="text-xs font-semibold">تحويل لقسم</p>
-              </button>
-              <button class="bg-purple-500 hover:bg-purple-600 text-white rounded-xl p-4 text-center transition">
-                <p class="text-2xl mb-1">✅</p>
-                <p class="text-xs font-semibold">إنهاء الخدمة</p>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Doctors Page -->
-      <div id="page-doctors" class="page-content hidden">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-semibold">إدارة الأطباء</h3>
-          <button class="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg text-sm transition">+ إضافة طبيب</button>
-        </div>
-        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4" id="doctors-grid"></div>
-      </div>
-
-      <!-- Patients Page -->
-      <div id="page-patients" class="page-content hidden">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-semibold">إدارة المرضى</h3>
-          <button class="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg text-sm transition">+ تسجيل مريض</button>
-        </div>
-        <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <table class="w-full text-sm">
-            <thead class="bg-gray-50 text-gray-500 text-xs">
-              <tr>
-                <th class="text-right p-3">#</th>
-                <th class="text-right p-3">الاسم</th>
-                <th class="text-right p-3">الهاتف</th>
-                <th class="text-right p-3">فصيلة الدم</th>
-                <th class="text-right p-3">آخر زيارة</th>
-                <th class="text-right p-3">الزيارات</th>
-                <th class="text-right p-3">الحالة</th>
-                <th class="text-right p-3">إجراءات</th>
-              </tr>
-            </thead>
-            <tbody id="patients-table"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Departments Page -->
-      <div id="page-departments" class="page-content hidden">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-semibold">إدارة الأقسام</h3>
-          <button class="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg text-sm transition">+ إضافة قسم</button>
-        </div>
-        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4" id="departments-grid"></div>
-      </div>
-
-      <!-- Pharmacy Page -->
-      <div id="page-pharmacy" class="page-content hidden">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-semibold">إدارة الصيدلية والمخزون</h3>
-          <button class="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg text-sm transition">+ إضافة دواء</button>
-        </div>
-        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4" id="medications-grid"></div>
-      </div>
-
-      <!-- Reports Page -->
-      <div id="page-reports" class="page-content hidden">
-        <h3 class="font-semibold mb-4">التقارير والتحليلات</h3>
-        <div class="grid md:grid-cols-2 gap-4 mb-6">
-          <div class="bg-white rounded-xl p-5 border shadow-sm">
-            <h4 class="text-sm font-semibold mb-3">🏆 أداء الأطباء</h4>
-            <div class="space-y-2" id="doctor-performance"></div>
-          </div>
-          <div class="bg-white rounded-xl p-5 border shadow-sm">
-            <h4 class="text-sm font-semibold mb-3">📊 تصدير التقارير</h4>
-            <div class="space-y-2">
-              <button class="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition text-sm">
-                <span class="text-xl">📄</span>
-                <div class="flex-1 text-right">
-                  <p class="font-semibold">تقرير المواعيد اليومي</p>
-                  <p class="text-[10px] text-gray-400">PDF - Excel</p>
-                </div>
-                <span>⬇️</span>
-              </button>
-              <button class="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition text-sm">
-                <span class="text-xl">💰</span>
-                <div class="flex-1 text-right">
-                  <p class="font-semibold">تقرير الإيرادات الشهري</p>
-                  <p class="text-[10px] text-gray-400">PDF - Excel</p>
-                </div>
-                <span>⬇️</span>
-              </button>
-              <button class="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition text-sm">
-                <span class="text-xl">👨‍⚕️</span>
-                <div class="flex-1 text-right">
-                  <p class="font-semibold">تقرير أداء الأطباء</p>
-                  <p class="text-[10px] text-gray-400">PDF - Excel</p>
-                </div>
-                <span>⬇️</span>
-              </button>
-              <button class="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition text-sm">
-                <span class="text-xl">💊</span>
-                <div class="flex-1 text-right">
-                  <p class="font-semibold">تقرير المخزون والأدوية</p>
-                  <p class="text-[10px] text-gray-400">PDF - Excel</p>
-                </div>
-                <span>⬇️</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Settings Page -->
-      <div id="page-settings" class="page-content hidden">
-        <h3 class="font-semibold mb-4">إعدادات المستشفى</h3>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div class="bg-white rounded-xl p-5 border shadow-sm space-y-4">
-            <h4 class="text-sm font-semibold">معلومات المستشفى</h4>
-            <div><label class="text-xs text-gray-500">اسم المستشفى (عربي)</label><input class="w-full border rounded-lg p-2 text-sm mt-1" value="مستشفى ميدي كير المركزي"></div>
-            <div><label class="text-xs text-gray-500">اسم المستشفى (إنجليزي)</label><input class="w-full border rounded-lg p-2 text-sm mt-1" value="MediCare Central Hospital"></div>
-            <div><label class="text-xs text-gray-500">البريد الإلكتروني</label><input class="w-full border rounded-lg p-2 text-sm mt-1" value="info@medicare-hospital.com"></div>
-            <div><label class="text-xs text-gray-500">رقم الهاتف</label><input class="w-full border rounded-lg p-2 text-sm mt-1" value="+966123456789"></div>
-            <button class="w-full bg-teal-500 hover:bg-teal-600 text-white rounded-lg py-2 text-sm transition">حفظ التغييرات</button>
-          </div>
-          <div class="bg-white rounded-xl p-5 border shadow-sm space-y-4">
-            <h4 class="text-sm font-semibold">إعدادات النظام</h4>
-            <div class="flex justify-between items-center p-3 rounded-lg border">
-              <div><p class="text-sm font-semibold">اللغة الافتراضية</p><p class="text-[10px] text-gray-400">لغة واجهة المستخدم</p></div>
-              <select class="border rounded-lg p-1.5 text-sm"><option>العربية</option><option>English</option></select>
-            </div>
-            <div class="flex justify-between items-center p-3 rounded-lg border">
-              <div><p class="text-sm font-semibold">الإشعارات</p><p class="text-[10px] text-gray-400">إشعارات FCM و SMS</p></div>
-              <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked class="sr-only peer"><div class="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-teal-300 rounded-full peer peer-checked:bg-teal-500"></div></label>
-            </div>
-            <div class="flex justify-between items-center p-3 rounded-lg border">
-              <div><p class="text-sm font-semibold">إعادة تعيين الطوابير</p><p class="text-[10px] text-gray-400">يومياً عند منتصف الليل</p></div>
-              <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked class="sr-only peer"><div class="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-teal-300 rounded-full peer peer-checked:bg-teal-500"></div></label>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Appointments Page -->
-      <div id="page-appointments" class="page-content hidden">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-semibold">إدارة المواعيد</h3>
-          <div class="flex gap-2">
-            <button class="bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg text-xs transition">اليوم</button>
-            <button class="bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg text-xs transition">هذا الأسبوع</button>
-            <button class="bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg text-xs transition">هذا الشهر</button>
-          </div>
-        </div>
-        <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <table class="w-full text-sm">
-            <thead class="bg-gray-50 text-gray-500 text-xs">
-              <tr>
-                <th class="text-right p-3">#</th>
-                <th class="text-right p-3">المريض</th>
-                <th class="text-right p-3">الطبيب</th>
-                <th class="text-right p-3">القسم</th>
-                <th class="text-right p-3">الوقت</th>
-                <th class="text-right p-3">النوع</th>
-                <th class="text-right p-3">الحالة</th>
-                <th class="text-right p-3">إجراءات</th>
-              </tr>
-            </thead>
-            <tbody id="all-appointments-table"></tbody>
-          </table>
-        </div>
-      </div>
-
-    </main>
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle"></h3>
+      <button class="btn-icon" onclick="closeModal()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer" id="modalFooter"></div>
   </div>
 </div>
 
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
 <script>
-// Current date
-document.getElementById('current-date').textContent = new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+// ============================================================
+// STATE
+// ============================================================
+let currentPage = 'dashboard';
+let currentLang = 'ar';
+let allHospitals = [];
+let allDepartments = [];
 
-// Navigation
-const sidebarItems = document.querySelectorAll('.sidebar-item[data-page]');
-const pages = document.querySelectorAll('.page-content');
-const pageTitle = document.getElementById('page-title');
-
-const titles = {
-  dashboard: 'لوحة التحكم',
-  appointments: 'إدارة المواعيد',
-  queue: 'إدارة الطوابير',
-  doctors: 'إدارة الأطباء',
-  patients: 'إدارة المرضى',
-  departments: 'إدارة الأقسام',
-  pharmacy: 'الصيدلية والمخزون',
-  reports: 'التقارير والتحليلات',
-  settings: 'الإعدادات'
-};
-
-sidebarItems.forEach(item => {
-  item.addEventListener('click', () => {
-    sidebarItems.forEach(i => i.classList.remove('active'));
-    item.classList.add('active');
-    pages.forEach(p => p.classList.add('hidden'));
-    const page = item.dataset.page;
-    document.getElementById('page-' + page).classList.remove('hidden');
-    pageTitle.textContent = titles[page] || '';
-  });
-});
-
-// Counter animation
-function animateCounters() {
-  document.querySelectorAll('.counter').forEach(el => {
-    const target = parseInt(el.dataset.target);
-    const duration = 1500;
-    const start = performance.now();
-    function update(now) {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      el.textContent = Math.floor(target * eased).toLocaleString('ar-SA');
-      if (progress < 1) requestAnimationFrame(update);
-    }
-    requestAnimationFrame(update);
-  });
-}
-
-// Revenue Chart
-function renderRevenueChart() {
-  const months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس'];
-  const revenue = [185, 210, 195, 245, 260, 278, 290, 284];
-  const expenses = [120, 135, 128, 145, 155, 162, 170, 168];
-  const maxVal = Math.max(...revenue) * 1.1;
-  const chart = document.getElementById('revenue-chart');
-  
-  months.forEach((month, i) => {
-    const col = document.createElement('div');
-    col.className = 'flex-1 flex flex-col items-center gap-1';
-    const rH = (revenue[i] / maxVal * 100);
-    const eH = (expenses[i] / maxVal * 100);
-    col.innerHTML = \`
-      <div class="w-full flex items-end gap-0.5 justify-center" style="height:160px">
-        <div class="w-3 bg-teal-500 rounded-t transition-all duration-700" style="height:\${rH}%" title="إيرادات: \${revenue[i]}K"></div>
-        <div class="w-3 bg-gray-300 rounded-t transition-all duration-700" style="height:\${eH}%" title="مصروفات: \${expenses[i]}K"></div>
-      </div>
-      <span class="text-[9px] text-gray-400">\${month}</span>
-    \`;
-    chart.appendChild(col);
-  });
-}
-
-// Appointments table
-const statusColors = {
-  completed: 'bg-green-50 text-green-600',
-  in_progress: 'bg-blue-50 text-blue-600',
-  waiting: 'bg-amber-50 text-amber-600',
-  confirmed: 'bg-teal-50 text-teal-600',
-  pending: 'bg-gray-50 text-gray-600',
-  cancelled: 'bg-red-50 text-red-600',
-  no_show: 'bg-orange-50 text-orange-600'
-};
-const statusLabels = {
-  completed: 'مكتمل', in_progress: 'قيد التنفيذ', waiting: 'في الانتظار',
-  confirmed: 'مؤكد', pending: 'قيد الانتظار', cancelled: 'ملغى', no_show: 'لم يحضر'
-};
-const typeLabels = { consultation: 'استشارة', follow_up: 'متابعة' };
-
-function renderAppointments() {
-  const appointments = [
-    { id: 1, patient: 'أحمد محمد', doctor: 'د. سارة علي', department: 'بطانة', time: '08:00', status: 'completed', type: 'consultation' },
-    { id: 2, patient: 'فاطمة حسن', doctor: 'د. خالد يوسف', department: 'قلب', time: '08:30', status: 'in_progress', type: 'follow_up' },
-    { id: 3, patient: 'عمر أحمد', doctor: 'د. سارة علي', department: 'بطانة', time: '09:00', status: 'waiting', type: 'consultation' },
-    { id: 4, patient: 'نور الدين', doctor: 'د. منى عبدالله', department: 'أطفال', time: '09:30', status: 'waiting', type: 'consultation' },
-    { id: 5, patient: 'سلمى خالد', doctor: 'د. خالد يوسف', department: 'قلب', time: '10:00', status: 'confirmed', type: 'follow_up' },
-    { id: 6, patient: 'يوسف إبراهيم', doctor: 'د. محمد رضا', department: 'عظام', time: '10:30', status: 'confirmed', type: 'consultation' },
-    { id: 7, patient: 'هدى محمد', doctor: 'د. منى عبدالله', department: 'أطفال', time: '11:00', status: 'pending', type: 'consultation' },
-    { id: 8, patient: 'محمود علي', doctor: 'د. سارة علي', department: 'بطانة', time: '11:30', status: 'pending', type: 'follow_up' },
-  ];
-
-  ['appointments-table', 'all-appointments-table'].forEach(tableId => {
-    const tbody = document.getElementById(tableId);
-    if (!tbody) return;
-    tbody.innerHTML = appointments.map(a => \`
-      <tr class="table-row border-b">
-        <td class="p-3 text-gray-400">\${a.id}</td>
-        <td class="p-3 font-medium">\${a.patient}</td>
-        <td class="p-3 text-gray-600">\${a.doctor}</td>
-        <td class="p-3 text-gray-500">\${a.department}</td>
-        <td class="p-3 text-gray-500">\${a.time}</td>
-        <td class="p-3"><span class="badge bg-gray-100">\${typeLabels[a.type]}</span></td>
-        <td class="p-3"><span class="badge \${statusColors[a.status]}">\${statusLabels[a.status]}</span></td>
-        <td class="p-3">
-          \${tableId === 'all-appointments-table' ? '<button class="text-teal-600 hover:text-teal-700 text-xs">تفاصيل</button>' : ''}
-        </td>
-      </tr>
-    \`).join('');
-  });
-}
-
-// Queue list
-function renderQueue() {
-  const queueList = document.getElementById('queue-list');
-  if (!queueList) return;
-  const patients = [
-    { number: 'D1-009', name: 'أحمد محمد', status: 'in_progress', wait: 0, priority: false },
-    { number: 'D1-010', name: 'فاطمة حسن', status: 'waiting', wait: 15, priority: false },
-    { number: 'D1-011', name: 'عمر أحمد', status: 'waiting', wait: 30, priority: true },
-    { number: 'D1-012', name: 'نور الدين', status: 'waiting', wait: 45, priority: false },
-    { number: 'D1-013', name: 'سلمى خالد', status: 'waiting', wait: 52, priority: false },
-  ];
-  queueList.innerHTML = patients.map(p => \`
-    <div class="queue-card flex items-center gap-3 p-3 rounded-xl border \${p.status === 'in_progress' ? 'bg-teal-50 border-teal-200' : 'bg-white'}">
-      <div class="w-10 h-10 rounded-lg \${p.status === 'in_progress' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-sm font-bold">
-        \${p.number}
-      </div>
-      <div class="flex-1">
-        <p class="text-sm font-semibold">\${p.name} \${p.priority ? '<span class="badge bg-red-100 text-red-600 text-[9px]">أولوية</span>' : ''}</p>
-        <p class="text-[10px] text-gray-400">\${p.wait > 0 ? 'انتظار: ' + p.wait + ' دقيقة' : 'يُخدم الآن'}</p>
-      </div>
-      <span class="badge \${statusColors[p.status]}">\${statusLabels[p.status]}</span>
-    </div>
-  \`).join('');
-}
-
-// Doctors grid
-function renderDoctors() {
-  const grid = document.getElementById('doctors-grid');
-  if (!grid) return;
-  const doctors = [
-    { id: 1, name: 'د. سارة علي', specialty: 'أمراض البطانة', dept: 'الباطنة', patients: 342, rating: 4.8, status: 'active' },
-    { id: 2, name: 'د. خالد يوسف', specialty: 'جراحة القلب', dept: 'القلب', patients: 289, rating: 4.9, status: 'active' },
-    { id: 3, name: 'د. منى عبدالله', specialty: 'طب الأطفال', dept: 'الأطفال', patients: 198, rating: 4.7, status: 'active' },
-    { id: 4, name: 'د. محمد رضا', specialty: 'جراحة العظام', dept: 'العظام', patients: 156, rating: 4.5, status: 'active' },
-    { id: 5, name: 'د. هالة سامي', specialty: 'أمراض جلدية', dept: 'الجلدية', patients: 267, rating: 4.6, status: 'on_leave' },
-    { id: 6, name: 'د. عمرو حسين', specialty: 'طب العيون', dept: 'العيون', patients: 312, rating: 4.4, status: 'active' },
-  ];
-  grid.innerHTML = doctors.map(d => \`
-    <div class="bg-white rounded-xl border shadow-sm p-5">
-      <div class="flex items-center gap-3 mb-3">
-        <div class="w-12 h-12 rounded-full \${d.status === 'active' ? 'bg-teal-100' : 'bg-gray-100'} flex items-center justify-center text-xl">👨‍⚕️</div>
-        <div class="flex-1">
-          <p class="font-semibold text-sm">\${d.name}</p>
-          <p class="text-[10px] text-gray-500">\${d.specialty} - \${d.dept}</p>
-        </div>
-        <span class="badge \${d.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}">\${d.status === 'active' ? 'نشط' : 'إجازة'}</span>
-      </div>
-      <div class="flex justify-between text-xs text-gray-500 border-t pt-3">
-        <span>\${d.patients} مريض</span>
-        <span>⭐ \${d.rating}</span>
-      </div>
-    </div>
-  \`).join('');
-}
-
-// Patients table
-function renderPatients() {
-  const tbody = document.getElementById('patients-table');
-  if (!tbody) return;
-  const patients = [
-    { id: 1, name: 'أحمد محمد علي', phone: '+966501234567', blood: 'A+', last: '2026-08-14', visits: 12, status: 'active' },
-    { id: 2, name: 'فاطمة حسن محمود', phone: '+966509876543', blood: 'O+', last: '2026-08-14', visits: 8, status: 'active' },
-    { id: 3, name: 'عمر أحمد سعيد', phone: '+966503456789', blood: 'B+', last: '2026-08-13', visits: 5, status: 'active' },
-    { id: 4, name: 'نور الدين محمد', phone: '+966507654321', blood: 'AB+', last: '2026-08-12', visits: 15, status: 'active' },
-    { id: 5, name: 'سلمى خالد عبدالله', phone: '+966502345678', blood: 'O-', last: '2026-08-10', visits: 3, status: 'inactive' },
-  ];
-  tbody.innerHTML = patients.map(p => \`
-    <tr class="table-row border-b">
-      <td class="p-3 text-gray-400">\${p.id}</td>
-      <td class="p-3 font-medium">\${p.name}</td>
-      <td class="p-3 text-gray-500 text-xs" dir="ltr">\${p.phone}</td>
-      <td class="p-3"><span class="badge bg-red-50 text-red-600">\${p.blood}</span></td>
-      <td class="p-3 text-gray-500 text-xs">\${p.last}</td>
-      <td class="p-3 text-gray-500">\${p.visits}</td>
-      <td class="p-3"><span class="badge \${p.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}">\${p.status === 'active' ? 'نشط' : 'غير نشط'}</span></td>
-      <td class="p-3"><button class="text-teal-600 text-xs hover:text-teal-700">عرض</button></td>
-    </tr>
-  \`).join('');
-}
-
-// Departments
-function renderDepartments() {
-  const grid = document.getElementById('departments-grid');
-  if (!grid) return;
-  const depts = [
-    { name: 'القلب والأوعية الدموية', doctors: 6, today: 18, icon: '❤️' },
-    { name: 'الباطنة', doctors: 5, today: 24, icon: '🫁' },
-    { name: 'طب الأطفال', doctors: 4, today: 15, icon: '👶' },
-    { name: 'جراحة العظام', doctors: 3, today: 12, icon: '🦴' },
-    { name: 'الأمراض الجلدية', doctors: 3, today: 9, icon: '🧴' },
-    { name: 'طب العيون', doctors: 4, today: 11, icon: '👁️' },
-    { name: 'الأنف والأذن والحنجرة', doctors: 3, today: 7, icon: '👂' },
-    { name: 'الأشعة والتشخيص', doctors: 2, today: 20, icon: '📡' },
-  ];
-  grid.innerHTML = depts.map(d => \`
-    <div class="bg-white rounded-xl border shadow-sm p-5 text-center">
-      <span class="text-3xl">\${d.icon}</span>
-      <p class="font-semibold text-sm mt-2">\${d.name}</p>
-      <div class="flex justify-center gap-4 mt-3 text-xs text-gray-500">
-        <span>\${d.doctors} أطباء</span>
-        <span>\${d.today} مريض اليوم</span>
-      </div>
-    </div>
-  \`).join('');
-}
-
-// Medications
-function renderMedications() {
-  const grid = document.getElementById('medications-grid');
-  if (!grid) return;
-  const meds = [
-    { name: 'باراسيتامول 500ملغ', stock: 2500, min: 500, status: 'in_stock', cat: 'مسكنات', expiry: '2027-06-15' },
-    { name: 'أموكسيسيلين 250ملغ', stock: 180, min: 200, status: 'low_stock', cat: 'مضادات حيوية', expiry: '2026-12-01' },
-    { name: 'أسيبروفين 400ملغ', stock: 1200, min: 300, status: 'in_stock', cat: 'مضادات التهاب', expiry: '2027-03-20' },
-    { name: 'أوميبرازول 20ملغ', stock: 50, min: 100, status: 'critical', cat: 'معدة', expiry: '2026-09-30' },
-    { name: 'ميتفورمين 500ملغ', stock: 800, min: 200, status: 'in_stock', cat: 'سكر', expiry: '2027-08-10' },
-  ];
-  const stockColors = { in_stock: 'bg-green-50 text-green-600 border-green-200', low_stock: 'bg-amber-50 text-amber-600 border-amber-200', critical: 'bg-red-50 text-red-600 border-red-200' };
-  const stockLabels = { in_stock: 'متوفر', low_stock: 'منخفض', critical: 'حرج' };
-  grid.innerHTML = meds.map(m => \`
-    <div class="rounded-xl border p-5 \${stockColors[m.status]}">
-      <div class="flex justify-between items-start mb-2">
-        <div>
-          <p class="font-semibold text-sm">\${m.name}</p>
-          <p class="text-[10px] opacity-75">\${m.cat} | ينتهي: \${m.expiry}</p>
-        </div>
-        <span class="badge \${stockColors[m.status]}">\${stockLabels[m.status]}</span>
-      </div>
-      <div class="mt-3">
-        <div class="flex justify-between text-xs mb-1">
-          <span>المخزون</span>
-          <span>\${m.stock} / \${m.min} (حد أدنى)</span>
-        </div>
-        <div class="w-full bg-white/50 rounded-full h-2">
-          <div class="rounded-full h-2 \${m.status === 'critical' ? 'bg-red-500' : m.status === 'low_stock' ? 'bg-amber-500' : 'bg-green-500'}" style="width: \${Math.min((m.stock / (m.min * 5)) * 100, 100)}%"></div>
-        </div>
-      </div>
-    </div>
-  \`).join('');
-}
-
-// Doctor Performance
-function renderDoctorPerformance() {
-  const el = document.getElementById('doctor-performance');
-  if (!el) return;
-  const data = [
-    { name: 'د. خالد يوسف', rate: 97, rating: 4.9, revenue: 92400 },
-    { name: 'د. سارة علي', rate: 94, rating: 4.8, revenue: 78000 },
-    { name: 'د. هالة سامي', rate: 93, rating: 4.6, revenue: 56000 },
-    { name: 'د. منى عبدالله', rate: 91, rating: 4.7, revenue: 49000 },
-    { name: 'د. محمد رضا', rate: 89, rating: 4.5, revenue: 52200 },
-  ];
-  el.innerHTML = data.map(d => \`
-    <div class="flex items-center gap-3 p-2 rounded-lg">
-      <span class="text-sm font-medium w-28 truncate">\${d.name}</span>
-      <div class="flex-1">
-        <div class="w-full bg-gray-100 rounded-full h-2">
-          <div class="bg-teal-500 rounded-full h-2" style="width: \${d.rate}%"></div>
-        </div>
-      </div>
-      <span class="text-xs font-bold text-teal-600 w-10">\${d.rate}%</span>
-      <span class="text-[10px] text-gray-400">⭐ \${d.rating}</span>
-    </div>
-  \`).join('');
-}
-
-// Notifications
-function toggleNotifications() {
-  const panel = document.getElementById('notif-panel');
-  panel.classList.toggle('hidden');
-}
-document.addEventListener('click', (e) => {
-  const panel = document.getElementById('notif-panel');
-  if (!e.target.closest('[onclick]') && !e.target.closest('#notif-panel')) {
-    panel.classList.add('hidden');
+const i18n = {
+  ar: {
+    dashboard_subtitle: 'لوحة التحكم',
+    nav_dashboard: 'لوحة التحكم',
+    nav_hospitals: 'المستشفيات',
+    nav_doctors: 'الأطباء',
+    nav_appointments: 'المواعيد',
+    nav_departments: 'الأقسام',
+    total_hospitals: 'إجمالي المستشفيات',
+    total_doctors: 'إجمالي الأطباء',
+    today_appointments: 'مواعيد اليوم',
+    total_revenue: 'إجمالي الإيرادات',
+    recent_appointments: 'أحدث المواعيد',
+    quick_actions: 'إجراءات سريعة',
+    add_hospital: 'إضافة مستشفى',
+    edit_hospital: 'تعديل مستشفى',
+    add_doctor: 'إضافة طبيب',
+    edit_doctor: 'تعديل طبيب',
+    name: 'الاسم',
+    name_en: 'الاسم بالإنجليزية',
+    location: 'الموقع',
+    location_en: 'الموقع بالإنجليزية',
+    phone: 'الهاتف',
+    email: 'البريد الإلكتروني',
+    rating: 'التقييم',
+    specialty: 'التخصص',
+    specialty_en: 'التخصص بالإنجليزية',
+    experience: 'الخبرة (سنوات)',
+    price: 'السعر',
+    bio: 'الوصف',
+    hospital: 'المستشفى',
+    department: 'القسم',
+    status: 'الحالة',
+    actions: 'الإجراءات',
+    save: 'حفظ',
+    cancel: 'إلغاء',
+    delete: 'حذف',
+    edit: 'تعديل',
+    confirm: 'تأكيد',
+    complete: 'إكمال',
+    pending: 'قيد الانتظار',
+    confirmed: 'مؤكد',
+    completed: 'مكتمل',
+    cancelled: 'ملغي',
+    patient_name: 'اسم المريض',
+    patient_phone: 'هاتف المريض',
+    date: 'التاريخ',
+    time: 'الوقت',
+    notes: 'ملاحظات',
+    doctors_count: 'عدد الأطباء',
+    departments_count: 'عدد الأقسام',
+    no_data: 'لا توجد بيانات',
+    filter_by_status: 'تصفية حسب الحالة',
+    filter_by_hospital: 'تصفية حسب المستشفى',
+    filter_by_department: 'تصفية حسب القسم',
+    all: 'الكل',
+    delete_confirm: 'هل أنت متأكد من الحذف؟',
+    success_save: 'تم الحفظ بنجاح',
+    success_delete: 'تم الحذف بنجاح',
+    error: 'حدث خطأ',
+    active: 'نشط',
+    inactive: 'غير نشط',
+    available: 'متاح',
+    unavailable: 'غير متاح',
+    currency: 'ر.س',
+    years: 'سنوات',
+    doctors: 'الأطباء',
+    departments: 'الأقسام',
+    manage_hospitals: 'إدارة المستشفيات',
+    manage_doctors: 'إدارة الأطباء',
+    manage_appointments: 'إدارة المواعيد',
+    view_departments: 'عرض الأقسام',
+  },
+  en: {
+    dashboard_subtitle: 'Admin Dashboard',
+    nav_dashboard: 'Dashboard',
+    nav_hospitals: 'Hospitals',
+    nav_doctors: 'Doctors',
+    nav_appointments: 'Appointments',
+    nav_departments: 'Departments',
+    total_hospitals: 'Total Hospitals',
+    total_doctors: 'Total Doctors',
+    today_appointments: "Today's Appointments",
+    total_revenue: 'Total Revenue',
+    recent_appointments: 'Recent Appointments',
+    quick_actions: 'Quick Actions',
+    add_hospital: 'Add Hospital',
+    edit_hospital: 'Edit Hospital',
+    add_doctor: 'Add Doctor',
+    edit_doctor: 'Edit Doctor',
+    name: 'Name',
+    name_en: 'Name (English)',
+    location: 'Location',
+    location_en: 'Location (English)',
+    phone: 'Phone',
+    email: 'Email',
+    rating: 'Rating',
+    specialty: 'Specialty',
+    specialty_en: 'Specialty (English)',
+    experience: 'Experience (years)',
+    price: 'Price',
+    bio: 'Bio',
+    hospital: 'Hospital',
+    department: 'Department',
+    status: 'Status',
+    actions: 'Actions',
+    save: 'Save',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    edit: 'Edit',
+    confirm: 'Confirm',
+    complete: 'Complete',
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    patient_name: 'Patient Name',
+    patient_phone: 'Patient Phone',
+    date: 'Date',
+    time: 'Time',
+    notes: 'Notes',
+    doctors_count: 'Doctors',
+    departments_count: 'Departments',
+    no_data: 'No data available',
+    filter_by_status: 'Filter by status',
+    filter_by_hospital: 'Filter by hospital',
+    filter_by_department: 'Filter by department',
+    all: 'All',
+    delete_confirm: 'Are you sure you want to delete?',
+    success_save: 'Saved successfully',
+    success_delete: 'Deleted successfully',
+    error: 'An error occurred',
+    active: 'Active',
+    inactive: 'Inactive',
+    available: 'Available',
+    unavailable: 'Unavailable',
+    currency: 'SAR',
+    years: 'years',
+    doctors: 'Doctors',
+    departments: 'Departments',
+    manage_hospitals: 'Manage Hospitals',
+    manage_doctors: 'Manage Doctors',
+    manage_appointments: 'Manage Appointments',
+    view_departments: 'View Departments',
   }
-});
-const notifs = [
-  { title: 'موعد جديد محجوز', body: 'المريض أحمد محمد حجز موعد مع د. سارة علي', time: '5 دقائق', read: false },
-  { title: 'تنبيه مخزون منخفض', body: 'أموكسيسيلين 250ملغ وصل للحد الأدنى', time: '15 دقيقة', read: false },
-  { title: 'وصفة جاهزة للصرف', body: 'وصفة #1234 جاهزة للصرف للصيدلية', time: '30 دقيقة', read: false },
-];
-document.getElementById('notif-list').innerHTML = notifs.map(n => \`
-  <div class="p-3 border-b hover:bg-gray-50 cursor-pointer \${n.read ? 'opacity-60' : ''}">
-    <div class="flex justify-between">
-      <p class="text-xs font-semibold">\${n.title}</p>
-      <span class="text-[10px] text-gray-400">\${n.time}</span>
-    </div>
-    <p class="text-[11px] text-gray-500 mt-0.5">\${n.body}</p>
-  </div>
-\`).join('');
+};
 
-// Init
-animateCounters();
-renderRevenueChart();
-renderAppointments();
-renderQueue();
-renderDoctors();
-renderPatients();
-renderDepartments();
-renderMedications();
-renderDoctorPerformance();
+function t(key) { return i18n[currentLang][key] || key; }
+
+// ============================================================
+// HELPERS
+// ============================================================
+function apiFetch(url, options = {}) {
+  return fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  }).then(r => {
+    if (!r.ok) return r.json().then(e => { throw new Error(e.error || 'Error'); });
+    return r.json();
+  });
+}
+
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function openModal(title, bodyHtml, footerHtml) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+  document.getElementById('modalFooter').innerHTML = footerHtml;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarBackdrop').classList.toggle('open');
+}
+
+function ratingStars(rating) {
+  const full = Math.floor(rating);
+  let html = '';
+  for (let i = 0; i < 5; i++) {
+    html += '<svg viewBox="0 0 24 24" style="opacity:'+(i<full?1:0.3)+'"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
+  }
+  return '<span class="rating">' + html + '</span>';
+}
+
+function statusBadge(status) {
+  const map = { pending: 'pending', confirmed: 'confirmed', completed: 'completed', cancelled: 'cancelled' };
+  return '<span class="badge badge-' + (map[status]||'pending') + '">' + t(status) + '</span>';
+}
+
+// ============================================================
+// LANGUAGE
+// ============================================================
+function setLang(lang) {
+  currentLang = lang;
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  document.getElementById('langAr').classList.toggle('active', lang === 'ar');
+  document.getElementById('langEn').classList.toggle('active', lang === 'en');
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (i18n[lang][key]) el.textContent = i18n[lang][key];
+  });
+  navigateTo(currentPage);
+}
+
+// ============================================================
+// ROUTING
+// ============================================================
+function navigateTo(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('data-page') === page);
+  });
+  const titleMap = {
+    dashboard: 'nav_dashboard',
+    hospitals: 'nav_hospitals',
+    doctors: 'nav_doctors',
+    appointments: 'nav_appointments',
+    departments: 'nav_departments',
+  };
+  const titleEl = document.getElementById('pageTitle');
+  titleEl.textContent = t(titleMap[page] || 'nav_dashboard');
+  titleEl.setAttribute('data-i18n', titleMap[page] || 'nav_dashboard');
+
+  const content = document.getElementById('appContent');
+  content.innerHTML = '<div style="text-align:center;padding:60px"><div class="spinner" style="width:40px;height:40px;border-width:3px"></div></div>';
+
+  // Close sidebar on mobile
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarBackdrop').classList.remove('open');
+
+  switch (page) {
+    case 'dashboard': renderDashboard(); break;
+    case 'hospitals': renderHospitals(); break;
+    case 'doctors': renderDoctors(); break;
+    case 'appointments': renderAppointments(); break;
+    case 'departments': renderDepartments(); break;
+  }
+}
+
+// ============================================================
+// DASHBOARD PAGE
+// ============================================================
+async function renderDashboard() {
+  const content = document.getElementById('appContent');
+  try {
+    const stats = await apiFetch('/api/dashboard/stats');
+    let recentHtml = '';
+    try {
+      const appointments = await apiFetch('/api/appointments');
+      const recent = appointments.slice(0, 5);
+      if (recent.length) {
+        recentHtml = '<div class="card" style="padding:20px;margin-top:24px"><div class="section-header"><h3>' + t('recent_appointments') + '</h3></div><div class="table-container"><table><thead><tr><th>' + t('patient_name') + '</th><th>' + t('nav_doctors') + '</th><th>' + t('date') + '</th><th>' + t('time') + '</th><th>' + t('status') + '</th></tr></thead><tbody>';
+        recent.forEach(a => {
+          recentHtml += '<tr><td>' + (a.patientName||'-') + '</td><td>' + (a.doctor?.name||'-') + '</td><td>' + (a.date||'-') + '</td><td>' + (a.time||'-') + '</td><td>' + statusBadge(a.status) + '</td></tr>';
+        });
+        recentHtml += '</tbody></table></div></div>';
+      }
+    } catch(e) {}
+
+    content.innerHTML = \
+      '<div class="stats-grid">' +
+        '<div class="card stat-card"><div class="stat-icon green"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg></div><div><div class="stat-value">' + stats.totalHospitals + '</div><div class="stat-label">' + t('total_hospitals') + '</div></div></div>' +
+        '<div class="card stat-card"><div class="stat-icon teal"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div><div class="stat-value">' + stats.totalDoctors + '</div><div class="stat-label">' + t('total_doctors') + '</div></div></div>' +
+        '<div class="card stat-card"><div class="stat-icon blue"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="stat-value">' + stats.todayAppointments + '</div><div class="stat-label">' + t('today_appointments') + '</div></div></div>' +
+        '<div class="card stat-card"><div class="stat-icon amber"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div><div class="stat-value">' + (stats.totalRevenue||0).toLocaleString() + '</div><div class="stat-label">' + t('total_revenue') + ' (' + t('currency') + ')</div></div></div>' +
+      '</div>' +
+      recentHtml +
+      '<div class="quick-actions">' +
+        '<button class="btn btn-primary" onclick="navigateTo(\'hospitals\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg> ' + t('manage_hospitals') + '</button>' +
+        '<button class="btn btn-secondary" onclick="navigateTo(\'doctors\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ' + t('manage_doctors') + '</button>' +
+        '<button class="btn btn-secondary" onclick="navigateTo(\'appointments\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ' + t('manage_appointments') + '</button>' +
+        '<button class="btn btn-secondary" onclick="navigateTo(\'departments\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> ' + t('view_departments') + '</button>' +
+      '</div>';
+  } catch (e) {
+    content.innerHTML = '<div class="empty-state"><p>' + t('error') + ': ' + e.message + '</p></div>';
+  }
+}
+
+// ============================================================
+// HOSPITALS PAGE
+// ============================================================
+async function renderHospitals() {
+  const content = document.getElementById('appContent');
+  try {
+    allHospitals = await apiFetch('/api/hospitals');
+    let html = '<div class="page-header"><h2>' + t('nav_hospitals') + '</h2><button class="btn btn-primary" onclick="openHospitalModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> ' + t('add_hospital') + '</button></div>';
+    if (!allHospitals.length) {
+      html += '<div class="card empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg><p>' + t('no_data') + '</p></div>';
+    } else {
+      html += '<div class="card"><div class="table-container"><table><thead><tr><th>' + t('name') + '</th><th>' + t('location') + '</th><th>' + t('phone') + '</th><th>' + t('rating') + '</th><th>' + t('departments') + '</th><th>' + t('doctors') + '</th><th>' + t('actions') + '</th></tr></thead><tbody>';
+      allHospitals.forEach(h => {
+        const name = currentLang === 'en' && h.nameEn ? h.nameEn : h.name;
+        const loc = currentLang === 'en' && h.locationEn ? h.locationEn : h.location;
+        html += '<tr><td><strong>' + name + '</strong></td><td>' + loc + '</td><td dir="ltr">' + (h.phone||'-') + '</td><td>' + ratingStars(h.rating) + '</td><td>' + (h._count?.departmentsList||0) + '</td><td>' + (h._count?.doctorsList||0) + '</td><td><div style="display:flex;gap:4px"><button class="btn-icon" onclick="openHospitalModal(\'' + h.id + '\')" title="' + t('edit') + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="btn-icon danger" onclick="deleteHospital(\'' + h.id + '\')" title="' + t('delete') + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = '<div class="empty-state"><p>' + t('error') + ': ' + e.message + '</p></div>';
+  }
+}
+
+function openHospitalModal(id) {
+  const h = id ? allHospitals.find(x => x.id === id) : null;
+  const isEdit = !!h;
+  const title = isEdit ? t('edit_hospital') : t('add_hospital');
+  const body = \
+    '<div class="form-group"><label class="form-label">' + t('name') + '</label><input class="form-input" id="f_name" value="' + (h?.name||'') + '" required></div>' +
+    '<div class="form-group"><label class="form-label">' + t('name_en') + '</label><input class="form-input" id="f_nameEn" value="' + (h?.nameEn||'') + '"></div>' +
+    '<div class="form-group"><label class="form-label">' + t('location') + '</label><input class="form-input" id="f_location" value="' + (h?.location||'') + '"></div>' +
+    '<div class="form-group"><label class="form-label">' + t('location_en') + '</label><input class="form-input" id="f_locationEn" value="' + (h?.locationEn||'') + '"></div>' +
+    '<div class="form-group"><label class="form-label">' + t('phone') + '</label><input class="form-input" id="f_phone" value="' + (h?.phone||'') + '" dir="ltr"></div>' +
+    '<div class="form-group"><label class="form-label">' + t('email') + '</label><input class="form-input" id="f_email" type="email" value="' + (h?.email||'') + '" dir="ltr"></div>' +
+    '<div class="form-group"><label class="form-label">' + t('rating') + '</label><input class="form-input" id="f_rating" type="number" min="0" max="5" step="0.1" value="' + (h?.rating||0) + '"></div>';
+  const footer = \
+    '<button class="btn btn-secondary" onclick="closeModal()">' + t('cancel') + '</button>' +
+    '<button class="btn btn-primary" onclick="saveHospital(\'' + (id||'') + '\')">' + t('save') + '</button>';
+  openModal(title, body, footer);
+}
+
+async function saveHospital(id) {
+  const data = {
+    name: document.getElementById('f_name').value,
+    nameEn: document.getElementById('f_nameEn').value,
+    location: document.getElementById('f_location').value,
+    locationEn: document.getElementById('f_locationEn').value,
+    phone: document.getElementById('f_phone').value,
+    email: document.getElementById('f_email').value,
+    rating: parseFloat(document.getElementById('f_rating').value) || 0,
+  };
+  try {
+    if (id) {
+      await apiFetch('/api/hospitals/' + id, { method: 'PUT', body: JSON.stringify(data) });
+    } else {
+      await apiFetch('/api/hospitals', { method: 'POST', body: JSON.stringify(data) });
+    }
+    closeModal();
+    showToast(t('success_save'));
+    renderHospitals();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function deleteHospital(id) {
+  if (!confirm(t('delete_confirm'))) return;
+  try {
+    await apiFetch('/api/hospitals/' + id, { method: 'DELETE' });
+    showToast(t('success_delete'));
+    renderHospitals();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ============================================================
+// DOCTORS PAGE
+// ============================================================
+async function renderDoctors() {
+  const content = document.getElementById('appContent');
+  try {
+    // Ensure hospitals and departments are loaded for filters
+    if (!allHospitals.length) allHospitals = await apiFetch('/api/hospitals');
+    if (!allDepartments.length) allDepartments = await apiFetch('/api/departments');
+
+    let filterHtml = '<div class="filter-bar">' +
+      '<select class="form-select" id="filterHospital" onchange="renderDoctors()"><option value="">' + t('all') + ' - ' + t('hospital') + '</option>';
+    allHospitals.forEach(h => {
+      const name = currentLang === 'en' && h.nameEn ? h.nameEn : h.name;
+      filterHtml += '<option value="' + h.id + '">' + name + '</option>';
+    });
+    filterHtml += '</select><select class="form-select" id="filterDept" onchange="renderDoctors()"><option value="">' + t('all') + ' - ' + t('department') + '</option>';
+    allDepartments.forEach(d => {
+      const name = currentLang === 'en' && d.nameEn ? d.nameEn : d.name;
+      filterHtml += '<option value="' + d.id + '">' + name + '</option>';
+    });
+    filterHtml += '</select></div>';
+
+    const hospitalId = document.getElementById('filterHospital')?.value || '';
+    const departmentId = document.getElementById('filterDept')?.value || '';
+    let query = '/api/doctors?';
+    if (hospitalId) query += 'hospitalId=' + hospitalId + '&';
+    if (departmentId) query += 'departmentId=' + departmentId + '&';
+    const doctors = await apiFetch(query);
+
+    let html = '<div class="page-header"><h2>' + t('nav_doctors') + '</h2><button class="btn btn-primary" onclick="openDoctorModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> ' + t('add_doctor') + '</button></div>';
+    html += filterHtml;
+
+    if (!doctors.length) {
+      html += '<div class="card empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><p>' + t('no_data') + '</p></div>';
+    } else {
+      html += '<div class="card"><div class="table-container"><table><thead><tr><th>' + t('name') + '</th><th>' + t('specialty') + '</th><th>' + t('hospital') + '</th><th>' + t('rating') + '</th><th>' + t('experience') + '</th><th>' + t('price') + '</th><th>' + t('status') + '</th><th>' + t('actions') + '</th></tr></thead><tbody>';
+      doctors.forEach(d => {
+        const name = currentLang === 'en' && d.nameEn ? d.nameEn : d.name;
+        const spec = currentLang === 'en' && d.specialtyEn ? d.specialtyEn : d.specialty;
+        const hName = currentLang === 'en' && d.hospital?.nameEn ? d.hospital.nameEn : d.hospital?.name;
+        const statusText = d.available ? t('available') : t('unavailable');
+        const statusClass = d.available ? 'badge-completed' : 'badge-cancelled';
+        html += '<tr><td><strong>' + name + '</strong></td><td>' + spec + '</td><td>' + (hName||'-') + '</td><td>' + ratingStars(d.rating) + '</td><td>' + d.experience + ' ' + t('years') + '</td><td>' + d.price + ' ' + t('currency') + '</td><td><span class="badge ' + statusClass + '">' + statusText + '</span></td><td><div style="display:flex;gap:4px"><button class="btn-icon" onclick="openDoctorModal(\'' + d.id + '\')" title="' + t('edit') + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="btn-icon danger" onclick="deleteDoctor(\'' + d.id + '\')" title="' + t('delete') + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = '<div class="empty-state"><p>' + t('error') + ': ' + e.message + '</p></div>';
+  }
+}
+
+function openDoctorModal(id) {
+  const doctors = document.querySelectorAll('table tbody tr');
+  // We need the full doctor list, fetch it
+  apiFetch('/api/doctors').then(allDocs => {
+    const d = id ? allDocs.find(x => x.id === id) : null;
+    const isEdit = !!d;
+    const title = isEdit ? t('edit_doctor') : t('add_doctor');
+
+    let hospitalOpts = '<option value="">-- ' + t('hospital') + ' --</option>';
+    allHospitals.forEach(h => {
+      const name = currentLang === 'en' && h.nameEn ? h.nameEn : h.name;
+      const sel = d && d.hospitalId === h.id ? ' selected' : '';
+      hospitalOpts += '<option value="' + h.id + '"' + sel + '>' + name + '</option>';
+    });
+
+    let deptOpts = '<option value="">-- ' + t('department') + ' --</option>';
+    allDepartments.forEach(dept => {
+      const name = currentLang === 'en' && dept.nameEn ? dept.nameEn : dept.name;
+      const sel = d && d.departmentId === dept.id ? ' selected' : '';
+      deptOpts += '<option value="' + dept.id + '"' + sel + '>' + name + '</option>';
+    });
+
+    const body = \
+      '<div class="form-group"><label class="form-label">' + t('name') + '</label><input class="form-input" id="f_name" value="' + (d?.name||'') + '" required></div>' +
+      '<div class="form-group"><label class="form-label">' + t('name_en') + '</label><input class="form-input" id="f_nameEn" value="' + (d?.nameEn||'') + '"></div>' +
+      '<div class="form-group"><label class="form-label">' + t('specialty') + '</label><input class="form-input" id="f_specialty" value="' + (d?.specialty||'') + '" required></div>' +
+      '<div class="form-group"><label class="form-label">' + t('specialty_en') + '</label><input class="form-input" id="f_specialtyEn" value="' + (d?.specialtyEn||'') + '"></div>' +
+      '<div class="form-group"><label class="form-label">' + t('hospital') + '</label><select class="form-select" id="f_hospitalId">' + hospitalOpts + '</select></div>' +
+      '<div class="form-group"><label class="form-label">' + t('department') + '</label><select class="form-select" id="f_departmentId">' + deptOpts + '</select></div>' +
+      '<div class="form-group"><label class="form-label">' + t('phone') + '</label><input class="form-input" id="f_phone" value="' + (d?.phone||'') + '" dir="ltr"></div>' +
+      '<div class="form-group"><label class="form-label">' + t('email') + '</label><input class="form-input" id="f_email" type="email" value="' + (d?.email||'') + '" dir="ltr"></div>' +
+      '<div class="form-group"><label class="form-label">' + t('experience') + '</label><input class="form-input" id="f_experience" type="number" min="0" value="' + (d?.experience||0) + '"></div>' +
+      '<div class="form-group"><label class="form-label">' + t('price') + '</label><input class="form-input" id="f_price" type="number" min="0" step="0.01" value="' + (d?.price||0) + '"></div>' +
+      '<div class="form-group"><label class="form-label">' + t('rating') + '</label><input class="form-input" id="f_rating" type="number" min="0" max="5" step="0.1" value="' + (d?.rating||0) + '"></div>' +
+      '<div class="form-group"><label class="form-label">' + t('bio') + '</label><textarea class="form-textarea" id="f_bio">' + (d?.bio||'') + '</textarea></div>' +
+      '<div class="form-group"><label class="form-label">' + t('status') + '</label><select class="form-select" id="f_available"><option value="true"' + (d?.available !== false ? ' selected' : '') + '>' + t('available') + '</option><option value="false"' + (d?.available === false ? ' selected' : '') + '>' + t('unavailable') + '</option></select></div>';
+
+    const footer = \
+      '<button class="btn btn-secondary" onclick="closeModal()">' + t('cancel') + '</button>' +
+      '<button class="btn btn-primary" onclick="saveDoctor(\'' + (id||'') + '\')">' + t('save') + '</button>';
+    openModal(title, body, footer);
+  });
+}
+
+async function saveDoctor(id) {
+  const data = {
+    name: document.getElementById('f_name').value,
+    nameEn: document.getElementById('f_nameEn').value,
+    specialty: document.getElementById('f_specialty').value,
+    specialtyEn: document.getElementById('f_specialtyEn').value,
+    hospitalId: document.getElementById('f_hospitalId').value,
+    departmentId: document.getElementById('f_departmentId').value,
+    phone: document.getElementById('f_phone').value,
+    email: document.getElementById('f_email').value,
+    experience: parseInt(document.getElementById('f_experience').value) || 0,
+    price: parseFloat(document.getElementById('f_price').value) || 0,
+    rating: parseFloat(document.getElementById('f_rating').value) || 0,
+    bio: document.getElementById('f_bio').value,
+    available: document.getElementById('f_available').value === 'true',
+  };
+  try {
+    if (id) {
+      await apiFetch('/api/doctors/' + id, { method: 'PUT', body: JSON.stringify(data) });
+    } else {
+      await apiFetch('/api/doctors', { method: 'POST', body: JSON.stringify(data) });
+    }
+    closeModal();
+    showToast(t('success_save'));
+    renderDoctors();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function deleteDoctor(id) {
+  if (!confirm(t('delete_confirm'))) return;
+  try {
+    await apiFetch('/api/doctors/' + id, { method: 'DELETE' });
+    showToast(t('success_delete'));
+    renderDoctors();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ============================================================
+// APPOINTMENTS PAGE
+// ============================================================
+async function renderAppointments() {
+  const content = document.getElementById('appContent');
+  try {
+    const statusFilter = document.getElementById('filterStatus')?.value || '';
+    let query = '/api/appointments';
+    if (statusFilter) query += '?status=' + statusFilter;
+    const appointments = await apiFetch(query);
+
+    let html = '<div class="page-header"><h2>' + t('nav_appointments') + '</h2></div>';
+    html += '<div class="filter-bar"><select class="form-select" id="filterStatus" onchange="renderAppointments()"><option value="">' + t('all') + ' - ' + t('status') + '</option><option value="pending"' + (statusFilter==='pending'?' selected':'') + '>' + t('pending') + '</option><option value="confirmed"' + (statusFilter==='confirmed'?' selected':'') + '>' + t('confirmed') + '</option><option value="completed"' + (statusFilter==='completed'?' selected':'') + '>' + t('completed') + '</option><option value="cancelled"' + (statusFilter==='cancelled'?' selected':'') + '>' + t('cancelled') + '</option></select></div>';
+
+    if (!appointments.length) {
+      html += '<div class="card empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><p>' + t('no_data') + '</p></div>';
+    } else {
+      html += '<div class="card"><div class="table-container"><table><thead><tr><th>' + t('patient_name') + '</th><th>' + t('nav_doctors') + '</th><th>' + t('hospital') + '</th><th>' + t('date') + '</th><th>' + t('time') + '</th><th>' + t('status') + '</th><th>' + t('actions') + '</th></tr></thead><tbody>';
+      appointments.forEach(a => {
+        const docName = a.doctor ? (currentLang === 'en' && a.doctor.nameEn ? a.doctor.nameEn : a.doctor.name) : '-';
+        const hospName = a.doctor?.hospital ? (currentLang === 'en' && a.doctor.hospital.nameEn ? a.doctor.hospital.nameEn : a.doctor.hospital.name) : '-';
+        let actions = '';
+        if (a.status === 'pending') {
+          actions += '<button class="btn btn-sm btn-primary" onclick="updateAppointmentStatus(\'' + a.id + '\',\'confirmed\')">' + t('confirm') + '</button>';
+          actions += '<button class="btn btn-sm btn-secondary" onclick="updateAppointmentStatus(\'' + a.id + '\',\'cancelled\')">' + t('cancel') + '</button>';
+        } else if (a.status === 'confirmed') {
+          actions += '<button class="btn btn-sm btn-primary" onclick="updateAppointmentStatus(\'' + a.id + '\',\'completed\')">' + t('complete') + '</button>';
+          actions += '<button class="btn btn-sm btn-secondary" onclick="updateAppointmentStatus(\'' + a.id + '\',\'cancelled\')">' + t('cancel') + '</button>';
+        }
+        actions += ' <button class="btn-icon danger" onclick="deleteAppointment(\'' + a.id + '\')" title="' + t('delete') + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>';
+        html += '<tr><td>' + (a.patientName||'-') + '</td><td>' + docName + '</td><td>' + hospName + '</td><td>' + (a.date||'-') + '</td><td dir="ltr">' + (a.time||'-') + '</td><td>' + statusBadge(a.status) + '</td><td><div class="status-actions">' + actions + '</div></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = '<div class="empty-state"><p>' + t('error') + ': ' + e.message + '</p></div>';
+  }
+}
+
+async function updateAppointmentStatus(id, status) {
+  try {
+    await apiFetch('/api/appointments/' + id, { method: 'PUT', body: JSON.stringify({ status }) });
+    showToast(t('success_save'));
+    renderAppointments();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function deleteAppointment(id) {
+  if (!confirm(t('delete_confirm'))) return;
+  try {
+    await apiFetch('/api/appointments/' + id, { method: 'DELETE' });
+    showToast(t('success_delete'));
+    renderAppointments();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ============================================================
+// DEPARTMENTS PAGE
+// ============================================================
+async function renderDepartments() {
+  const content = document.getElementById('appContent');
+  try {
+    allDepartments = await apiFetch('/api/departments');
+    let html = '<div class="page-header"><h2>' + t('nav_departments') + '</h2></div>';
+
+    if (!allDepartments.length) {
+      html += '<div class="card empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><p>' + t('no_data') + '</p></div>';
+    } else {
+      html += '<div class="dept-grid">';
+      allDepartments.forEach(d => {
+        const name = currentLang === 'en' && d.nameEn ? d.nameEn : d.name;
+        const hName = d.hospital ? (currentLang === 'en' && d.hospital.nameEn ? d.hospital.nameEn : d.hospital.name) : '-';
+        const iconEmoji = d.icon || '🏥';
+        html += '<div class="card dept-card"><div class="dept-icon">' + iconEmoji + '</div><div class="dept-name">' + name + '</div><div class="dept-hospital">' + hName + '</div><div class="dept-count">' + (d._count?.doctors||0) + ' ' + t('doctors') + '</div></div>';
+      });
+      html += '</div>';
+    }
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = '<div class="empty-state"><p>' + t('error') + ': ' + e.message + '</p></div>';
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+(function init() {
+  // Set current date
+  const now = new Date();
+  const dateStr = now.toLocaleDateString(currentLang === 'ar' ? 'ar-SA' : 'en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+  document.getElementById('currentDate').textContent = dateStr;
+
+  // Load hospitals/departments cache
+  apiFetch('/api/hospitals').then(d => { allHospitals = d; }).catch(() => {});
+  apiFetch('/api/departments').then(d => { allDepartments = d; }).catch(() => {});
+
+  // Render dashboard
+  navigateTo('dashboard');
+})();
 </script>
 </body>
-</html>`
+</html>`;
 
-app.get('/', (c) => c.html(adminHTML))
+// ============================================================
+// SERVE HTML AT ROOT
+// ============================================================
+app.get('/', (c) => c.html(HTML))
 
+// ============================================================
+// START SERVER
+// ============================================================
 console.log('🏥 MediCare Pro Admin Dashboard running on http://localhost:3001')
 
-export default {
+const server = Bun.serve({
   port: 3001,
   fetch: app.fetch,
-}
+})
+
+// Keep process alive
+process.on('SIGINT', () => {
+  console.log('Shutting down...')
+  server.stop()
+  process.exit(0)
+})
+
+// Prevent process from exiting
+setInterval(() => {}, 60000)
