@@ -1,920 +1,961 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  projectInfo,
-  apiEndpoints,
-  dbTables,
-  setupSteps,
-  demoCredentials,
-  type ApiEndpoint,
-} from '@/lib/project-data'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Copy,
-  CheckCircle2,
-  Server,
-  Database,
-  Key,
-  Globe,
-  Shield,
-  Activity,
-  FileText,
-  Layers,
-  Users,
-  Bell,
-  CreditCard,
-  BarChart3,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  Hospital,
+  Search,
+  Star,
   Clock,
+  MapPin,
+  Phone,
+  Mail,
+  Calendar,
+  ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Play,
-  Download,
+  Shield,
+  Heart,
+  Users,
+  Stethoscope,
+  TicketCheck,
+  FileText,
+  CreditCard,
+  Bell,
+  User,
+  Menu,
+  X,
+  ArrowLeft,
+  CheckCircle2,
+  Globe,
   Zap,
-  TestTube,
   Smartphone,
-  Terminal,
-  GitBranch,
+  Baby,
+  Eye,
+  Bone,
+  Pill,
+  Microscope,
 } from 'lucide-react'
 
-const methodColors: Record<string, string> = {
-  GET: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
-  POST: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  PUT: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-  DELETE: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  PATCH: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-}
+// ═══════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════
 
-const categoryLabels: Record<string, string> = {
-  public: '🌐 عام | Public',
-  auth: '🔐 مصادقة | Auth',
-  patient: '🤒 مريض | Patient',
-  doctor: '👨‍⚕️ طبيب | Doctor',
-  receptionist: '📋 استقبال | Receptionist',
-  nurse: '👩‍⚕️ تمريض | Nurse',
-  pharmacist: '💊 صيدلية | Pharmacist',
-  admin: '🏥 مدير المستشفى | Admin',
-  superAdmin: '👑 المدير العام | Super Admin',
-}
+const hospitals = [
+  { id: 1, name_ar: 'مستشفى ميدي كير المركزي', name_en: 'MediCare Central Hospital', location: 'الرياض، حي العليا', doctors: 42, departments: 8, rating: 4.8, image: '🏥' },
+  { id: 2, name_ar: 'مستشفى ميدي كير الشمال', name_en: 'MediCare North Hospital', location: 'الرياض، حي الملقا', doctors: 28, departments: 6, rating: 4.6, image: '🏥' },
+  { id: 3, name_ar: 'عيادة ميدي كير - جدة', name_en: 'MediCare Jeddah Clinic', location: 'جدة، حي الروضة', doctors: 15, departments: 5, rating: 4.7, image: '🏢' },
+]
+
+const departments = [
+  { id: 1, name_ar: 'القلب والأوعية الدموية', name_en: 'Cardiology', icon: Heart, color: 'text-red-500', doctors: 6, desc_ar: 'تشخيص وعلاج أمراض القلب والشرايين' },
+  { id: 2, name_ar: 'الباطنة', name_en: 'Internal Medicine', icon: Stethoscope, color: 'text-blue-500', doctors: 5, desc_ar: 'الطب الباطني العام وأمراض الجهاز الهضمي' },
+  { id: 3, name_ar: 'طب الأطفال', name_en: 'Pediatrics', icon: Baby, color: 'text-pink-500', doctors: 4, desc_ar: 'رعاية صحية شاملة للأطفال والرضع' },
+  { id: 4, name_ar: 'جراحة العظام', name_en: 'Orthopedics', icon: Bone, color: 'text-amber-500', doctors: 3, desc_ar: 'علاج إصابات و أمراض العظام والمفاصل' },
+  { id: 5, name_ar: 'الأمراض الجلدية', name_en: 'Dermatology', icon: Eye, color: 'text-purple-500', doctors: 3, desc_ar: 'علاج الأمراض الجلدية والتجميل' },
+  { id: 6, name_ar: 'طب العيون', name_en: 'Ophthalmology', icon: Eye, color: 'text-cyan-500', doctors: 4, desc_ar: 'فحص وعلاج أمراض العيون والرؤية' },
+  { id: 7, name_ar: 'الأنف والأذن والحنجرة', name_en: 'ENT', icon: Stethoscope, color: 'text-orange-500', doctors: 3, desc_ar: 'أمراض الأنف والأذن والحنجرة' },
+  { id: 8, name_ar: 'الأشعة والتشخيص', name_en: 'Radiology', icon: Microscope, color: 'text-teal-500', doctors: 2, desc_ar: 'خدمات الأشعة والتصوير الطبي' },
+]
+
+const doctors = [
+  { id: 1, name_ar: 'د. سارة علي', name_en: 'Dr. Sarah Ali', specialty_ar: 'أمراض البطانة', specialty_en: 'Internal Medicine', dept: 'الباطنة', rating: 4.8, reviews: 156, patients: 342, fee: 200, available: true, image: '👩‍⚕️', schedule: 'السبت - الأربعاء | 9ص - 5م' },
+  { id: 2, name_ar: 'د. خالد يوسف', name_en: 'Dr. Khaled Youssef', specialty_ar: 'جراحة القلب', specialty_en: 'Cardiac Surgery', dept: 'القلب', rating: 4.9, reviews: 203, patients: 289, fee: 350, available: true, image: '👨‍⚕️', schedule: 'الأحد - الخميس | 8ص - 4م' },
+  { id: 3, name_ar: 'د. منى عبدالله', name_en: 'Dr. Mona Abdullah', specialty_ar: 'طب الأطفال', specialty_en: 'Pediatrics', dept: 'الأطفال', rating: 4.7, reviews: 98, patients: 198, fee: 150, available: true, image: '👩‍⚕️', schedule: 'السبت - الخميس | 10ص - 6م' },
+  { id: 4, name_ar: 'د. محمد رضا', name_en: 'Dr. Mohamed Reda', specialty_ar: 'جراحة العظام', specialty_en: 'Orthopedic Surgery', dept: 'العظام', rating: 4.5, reviews: 67, patients: 156, fee: 280, available: false, image: '👨‍⚕️', schedule: 'الإثنين - الجمعة | 9ص - 3م' },
+  { id: 5, name_ar: 'د. هالة سامي', name_en: 'Dr. Hala Sami', specialty_ar: 'أمراض جلدية', specialty_en: 'Dermatology', dept: 'الجلدية', rating: 4.6, reviews: 112, patients: 267, fee: 180, available: true, image: '👩‍⚕️', schedule: 'السبت - الأربعاء | 11ص - 7م' },
+  { id: 6, name_ar: 'د. عمرو حسين', name_en: 'Dr. Amr Hussein', specialty_ar: 'طب العيون', specialty_en: 'Ophthalmology', dept: 'العيون', rating: 4.4, reviews: 89, patients: 312, fee: 220, available: true, image: '👨‍⚕️', schedule: 'الأحد - الخميس | 10ص - 5م' },
+]
+
+const reviews = [
+  { id: 1, patient: 'أحمد محمد', rating: 5, comment: 'دكتور ممتاز واستقبال حلو والتنظيم رائع', date: '2026-08-10' },
+  { id: 2, patient: 'فاطمة حسن', rating: 4, comment: 'خدمة جيدة لكن وقت الانتظار طويل', date: '2026-08-08' },
+  { id: 3, patient: 'عمر سعيد', rating: 5, comment: 'أفضل مستشفى في المنطقة، أنصح الكل', date: '2026-08-05' },
+]
+
+const timeSlots = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '13:00', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30']
+
+// ═══════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════
+
+type Page = 'home' | 'hospital' | 'doctors' | 'doctor-profile' | 'departments' | 'booking' | 'login' | 'register' | 'profile' | 'queue' | 'records' | 'prescriptions' | 'invoices' | 'notifications'
 
 export default function Home() {
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [currentPage, setCurrentPage] = useState<Page>('home')
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [baseUrl, setBaseUrl] = useState('http://localhost:8000')
+  const [selectedHospital, setSelectedHospital] = useState<number>(1)
+  const [selectedDoctor, setSelectedDoctor] = useState<number>(0)
+  const [selectedDate, setSelectedDate] = useState('')
+  const [selectedTime, setSelectedTime] = useState('')
+  const [selectedDept, setSelectedDept] = useState<number>(0)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [bookingSuccess, setBookingSuccess] = useState(false)
 
-  const allEndpoints = Object.entries(apiEndpoints).flatMap(([cat, eps]) =>
-    eps.map((ep) => ({ ...ep, category: cat }))
-  )
+  const navigate = (page: Page, extra?: any) => {
+    setCurrentPage(page)
+    if (extra?.doctorId) setSelectedDoctor(extra.doctorId)
+    if (extra?.deptId) setSelectedDept(extra.deptId)
+    if (extra?.hospitalId) setSelectedHospital(extra.hospitalId)
+    setBookingSuccess(false)
+    window.scrollTo(0, 0)
+  }
 
-  const filteredEndpoints = allEndpoints.filter((ep) => {
-    const matchesSearch =
-      !searchQuery ||
-      ep.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ep.description_en.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ep.description_ar.includes(searchQuery)
-    const matchesCategory = selectedCategory === 'all' || ep.category === selectedCategory
-    return matchesSearch && matchesCategory
-  })
-
-  const totalEndpoints = allEndpoints.length
-
-  const copyToClipboard = (text: string, idx: number) => {
-    navigator.clipboard.writeText(text)
-    setCopiedIdx(idx)
-    setTimeout(() => setCopiedIdx(null), 2000)
+  const handleBooking = () => {
+    setBookingSuccess(true)
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
-      {/* Hero Header */}
-      <header className="relative overflow-hidden border-b border-slate-200 dark:border-slate-800">
-        <div className="absolute inset-0 bg-gradient-to-r from-teal-600/10 via-emerald-500/5 to-cyan-600/10 dark:from-teal-600/20 dark:via-emerald-500/10 dark:to-cyan-600/20" />
-        <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-2xl shadow-lg shadow-teal-500/25">
-                  🏥
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-                    {projectInfo.name}
-                  </h1>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {projectInfo.subtitle}
-                  </p>
-                </div>
-              </div>
-              <p className="max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-400" dir="rtl">
-                {projectInfo.description_ar}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary" className="gap-1 bg-teal-50 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
-                <GitBranch className="h-3 w-3" /> v{projectInfo.version}
-              </Badge>
-              <Badge variant="secondary" className="gap-1 bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                <Server className="h-3 w-3" /> Laravel {projectInfo.laravel}
-              </Badge>
-              <Badge variant="secondary" className="gap-1 bg-violet-50 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300">
-                <Terminal className="h-3 w-3" /> PHP {projectInfo.php}
-              </Badge>
-              <Badge variant="secondary" className="gap-1 bg-amber-50 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                <Layers className="h-3 w-3" /> {projectInfo.stats.totalPhpFiles} ملف PHP
-              </Badge>
-              <Badge variant="secondary" className="gap-1 bg-rose-50 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
-                <Globe className="h-3 w-3" /> AR + EN
-              </Badge>
-            </div>
+    <div className="min-h-screen bg-gray-50" dir="rtl">
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* NAVIGATION BAR */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b shadow-sm">
+        <div className="mx-auto max-w-6xl px-4 flex items-center justify-between h-14">
+          <button onClick={() => navigate('home')} className="flex items-center gap-2">
+            <span className="text-xl">🏥</span>
+            <span className="font-bold text-teal-700 text-sm sm:text-base">MediCare Pro</span>
+          </button>
+
+          {/* Desktop Menu */}
+          <div className="hidden md:flex items-center gap-1">
+            <NavButton onClick={() => navigate('home')} active={currentPage === 'home'}>الرئيسية</NavButton>
+            <NavButton onClick={() => navigate('doctors')}>الأطباء</NavButton>
+            <NavButton onClick={() => navigate('departments')}>الأقسام</NavButton>
+            <NavButton onClick={() => navigate('login')}>تسجيل الدخول</NavButton>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700 hidden sm:flex"
+              onClick={() => navigate('register')}
+            >
+              <User className="h-3.5 w-3.5 ml-1" />
+              حساب جديد
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden sm:flex gap-1"
+              onClick={() => navigate('login')}
+            >
+              تسجيل الدخول
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
           </div>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-1 h-auto p-1">
-            <TabsTrigger value="overview" className="gap-1 text-xs sm:text-sm py-2">
-              <Activity className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">نظرة عامة</span>
-              <span className="sm:hidden">نظرة</span>
-            </TabsTrigger>
-            <TabsTrigger value="api" className="gap-1 text-xs sm:text-sm py-2">
-              <Layers className="h-3.5 w-3.5" />
-              <span>API</span>
-            </TabsTrigger>
-            <TabsTrigger value="database" className="gap-1 text-xs sm:text-sm py-2">
-              <Database className="h-3.5 w-3.5" />
-              <span>قاعدة البيانات</span>
-            </TabsTrigger>
-            <TabsTrigger value="setup" className="gap-1 text-xs sm:text-sm py-2">
-              <Play className="h-3.5 w-3.5" />
-              <span>التشغيل</span>
-            </TabsTrigger>
-            <TabsTrigger value="tester" className="gap-1 text-xs sm:text-sm py-2">
-              <TestTube className="h-3.5 w-3.5" />
-              <span>اختبار</span>
-            </TabsTrigger>
-            <TabsTrigger value="mobile" className="gap-1 text-xs sm:text-sm py-2">
-              <Smartphone className="h-3.5 w-3.5" />
-              <span>موبايل</span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* ═══════════════════════════════════════════════════════════ */}
-          {/* OVERVIEW TAB */}
-          {/* ═══════════════════════════════════════════════════════════ */}
-          <TabsContent value="overview" className="space-y-6">
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {[
-                { label: 'API Endpoints', value: totalEndpoints, icon: Layers, color: 'from-teal-500 to-emerald-600' },
-                { label: 'Database Tables', value: projectInfo.stats.migrations, icon: Database, color: 'from-blue-500 to-indigo-600' },
-                { label: 'Models', value: projectInfo.stats.models, icon: FileText, color: 'from-violet-500 to-purple-600' },
-                { label: 'Controllers', value: projectInfo.stats.controllers, icon: Server, color: 'from-amber-500 to-orange-600' },
-                { label: 'Tests', value: projectInfo.stats.tests, icon: TestTube, color: 'from-rose-500 to-pink-600' },
-                { label: 'Services', value: projectInfo.stats.services, icon: Zap, color: 'from-cyan-500 to-sky-600' },
-                { label: 'Jobs', value: projectInfo.stats.jobs, icon: Clock, color: 'from-lime-500 to-green-600' },
-                { label: 'Events', value: projectInfo.stats.events, icon: Bell, color: 'from-fuchsia-500 to-pink-600' },
-                { label: 'Seeders', value: projectInfo.stats.seeders, icon: Play, color: 'from-emerald-500 to-teal-600' },
-                { label: 'Roles', value: projectInfo.roles.length, icon: Shield, color: 'from-red-500 to-rose-600' },
-              ].map((stat) => (
-                <Card key={stat.label} className="relative overflow-hidden">
-                  <div className={`absolute top-0 right-0 h-16 w-16 -translate-y-4 translate-x-4 rounded-full bg-gradient-to-br ${stat.color} opacity-10`} />
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2">
-                      <stat.icon className="h-4 w-4 text-slate-400" />
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{stat.label}</span>
-                    </div>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{stat.value}</p>
-                  </CardContent>
-                </Card>
-              ))}
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t bg-white">
+            <div className="px-4 py-3 space-y-1">
+              <MobileNavButton onClick={() => { navigate('home'); setMobileMenuOpen(false) }}>🏠 الرئيسية</MobileNavButton>
+              <MobileNavButton onClick={() => { navigate('doctors'); setMobileMenuOpen(false) }}>👨‍⚕️ الأطباء</MobileNavButton>
+              <MobileNavButton onClick={() => { navigate('departments'); setMobileMenuOpen(false) }}>🏢 الأقسام</MobileNavButton>
+              <MobileNavButton onClick={() => { navigate('login'); setMobileMenuOpen(false) }}>🔑 تسجيل الدخول</MobileNavButton>
+              <Separator />
+              <Button className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white" onClick={() => { navigate('register'); setMobileMenuOpen(false) }}>
+                إنشاء حساب جديد
+              </Button>
             </div>
+          </div>
+        )}
+      </nav>
 
-            {/* Tech Stack + Roles */}
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Layers className="h-5 w-5 text-teal-500" />
-                    التقنيات المستخدمة | Tech Stack
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {projectInfo.techStack.map((tech) => (
-                      <div key={tech.name} className="flex items-center gap-2 rounded-lg border p-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                        <span className="text-lg">{tech.icon}</span>
-                        <div>
-                          <p className="text-xs font-semibold text-slate-900 dark:text-white">{tech.name}</p>
-                          <p className="text-[10px] text-slate-500">{tech.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-teal-500" />
-                    أدوار المستخدمين | User Roles
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {projectInfo.roles.map((role) => {
-                      const count = allEndpoints.filter((ep) =>
-                        ep.roles.includes(role.name) || ep.roles.includes('all')
-                      ).length
-                      return (
-                        <div
-                          key={role.name}
-                          className="flex items-center justify-between rounded-lg border p-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-lg">{role.icon}</span>
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                                {role.name_ar}
-                              </p>
-                              <p className="text-[10px] text-slate-500">{role.name}</p>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {count} API
-                          </Badge>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Features */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-teal-500" />
-                  مميزات النظام | System Features
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {[
-                    { icon: Globe, title: 'ثنائي اللغة', desc: 'عربي (RTL) + إنجليزي (LTR) مع دعم كامل', titleEn: 'Bilingual', descEn: 'Arabic (RTL) + English (LTR) full support' },
-                    { icon: Users, title: '7 أدوار مستخدمين', desc: 'تحكم كامل بالصلاحيات لكل دور', titleEn: '7 User Roles', descEn: 'Complete permission control per role' },
-                    { icon: Clock, title: 'نظام طوابير ذكي', desc: 'D{dept}-{seq} مع إعادة تعيين يومي', titleEn: 'Smart Queue', descEn: 'D{dept}-{seq} with daily reset' },
-                    { icon: Bell, title: 'إشعارات فورية', desc: 'FCM Push + SMS + Database Notifications', titleEn: 'Real-time', descEn: 'FCM Push + SMS + DB Notifications' },
-                    { icon: CreditCard, title: 'دفع إلكتروني', desc: 'كاش + بطاقة + محفظة + تأمين', titleEn: 'E-Payments', descEn: 'Cash + Card + Wallet + Insurance' },
-                    { icon: BarChart3, title: 'تقارير متقدمة', desc: 'PDF + Excel مع لوحات تحكم تحليلية', titleEn: 'Reports', descEn: 'PDF + Excel with analytics dashboards' },
-                    { icon: Shield, title: 'أمان متقدم', desc: 'Sanctum Auth + Rate Limiting + Multi-tenancy', titleEn: 'Security', descEn: 'Sanctum Auth + Rate Limiting + Multi-tenancy' },
-                    { icon: FileText, title: 'Swagger/OpenAPI', desc: 'توثيق تلقائي لجميع الـ 80+ endpoint', titleEn: 'Swagger Docs', descEn: 'Auto documentation for 80+ endpoints' },
-                    { icon: Database, title: '18 جدول', desc: 'MySQL 8 مع Soft Deletes و Relations كاملة', titleEn: '18 Tables', descEn: 'MySQL 8 with Soft Deletes & full relations' },
-                  ].map((f) => (
-                    <div key={f.titleEn} className="flex items-start gap-3 rounded-lg border p-3">
-                      <f.icon className="mt-0.5 h-4 w-4 shrink-0 text-teal-500" />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{f.title}</p>
-                        <p className="text-xs text-slate-500">{f.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Project Structure */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-teal-500" />
-                  هيكل المشروع | Project Structure
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-80">
-                  <pre className="text-xs leading-relaxed text-slate-600 dark:text-slate-400" dir="ltr">
-{`medicare-pro/
-├── app/
-│   ├── Console/
-│   │   ├── Commands/        (6 Artisan Commands)
-│   │   └── Kernel.php       (Task Scheduler)
-│   ├── Events/              (5 Events)
-│   ├── Exceptions/
-│   ├── Http/
-│   │   ├── Controllers/Api/  (31 Controllers)
-│   │   │   ├── Admin/       (6: Dashboard, Doctor, Dept, Report, Setting, Staff)
-│   │   │   ├── Doctor/      (5: Appointment, Dashboard, MedicalRecord, Prescription, Schedule)
-│   │   │   ├── Nurse/       (1: VitalSign)
-│   │   │   ├── Patient/     (7: Appointment, Invoice, MedicalRecord, Notification, Prescription, Profile, Queue)
-│   │   │   ├── Pharmacist/  (2: Medication, Prescription)
-│   │   │   ├── Receptionist/(4: Appointment, Dashboard, Patient, Queue)
-│   │   │   ├── SuperAdmin/  (4: Analytics, Hospital, Language, Plan)
-│   │   │   ├── AuthController.php
-│   │   │   └── PublicController.php
-│   │   ├── Middleware/       (3: SetLocale, CheckRole, CheckHospitalAccess)
-│   │   ├── Requests/        (24 FormRequests by role)
-│   │   └── Resources/        (17 API Resources)
-│   ├── Jobs/                (9 Queued Jobs)
-│   ├── Listeners/           (5 Event Listeners)
-│   ├── Models/              (18 Eloquent Models)
-│   ├── Providers/           (AppServiceProvider)
-│   ├── Repositories/        (6 Interfaces + 6 Implementations + Base)
-│   ├── Services/            (6: Queue, Notification, Payment, PDF, SMS, Translation)
-│   ├── Swagger/             (swagger.php)
-│   └── Traits/              (3: HasHospitalAccess, LogsActivity, Translatable)
-├── config/                  (13 Config Files)
-├── database/
-│   ├── factories/           (13 Model Factories)
-│   ├── migrations/          (22 Migrations)
-│   └── seeders/             (10 Seeders)
-├── docker/                  (nginx, php, mysql, soketi configs)
-├── resources/
-│   ├── lang/ar/             (9 Arabic language files)
-│   ├── lang/en/             (9 English language files)
-│   └── views/emails/        (2 Email templates)
-├── routes/
-│   ├── api.php              (80+ API endpoints)
-│   ├── web.php
-│   └── console.php
-├── tests/
-│   ├── Feature/             (10 Feature Tests)
-│   └── Unit/                (3 Unit Tests)
-├── Dockerfile
-├── docker-compose.yml       (8 Services)
-├── docker-entrypoint.sh
-├── .env.example             (Complete config)
-├── composer.json
-└── README.md                (Bilingual)`}
-                  </pre>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ═══════════════════════════════════════════════════════════ */}
-          {/* API DOCUMENTATION TAB */}
-          {/* ═══════════════════════════════════════════════════════════ */}
-          <TabsContent value="api" className="space-y-4">
-            {/* Search + Filter */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <div className="relative flex-1">
-                    <Input
-                      placeholder="ابحث عن endpoint... (path, description)"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pr-10"
-                    />
-                    <Layers className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Button
-                      size="sm"
-                      variant={selectedCategory === 'all' ? 'default' : 'outline'}
-                      onClick={() => setSelectedCategory('all')}
-                    >
-                      الكل ({totalEndpoints})
-                    </Button>
-                    {Object.entries(apiEndpoints).map(([key, eps]) => (
-                      <Button
-                        key={key}
-                        size="sm"
-                        variant={selectedCategory === key ? 'default' : 'outline'}
-                        onClick={() => setSelectedCategory(key)}
-                      >
-                        {eps.length}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Base URL Setting */}
-            <Card>
-              <CardContent className="flex items-center gap-3 p-3">
-                <Server className="h-4 w-4 text-slate-400" />
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Base URL:</span>
-                <Input
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  className="max-w-sm font-mono text-xs"
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => copyToClipboard(baseUrl, -1)}
-                >
-                  {copiedIdx === -1 ? <CheckCircle2 className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Results Count */}
-            <p className="text-sm text-slate-500">
-              عرض {filteredEndpoints.length} من {totalEndpoints} endpoint
-            </p>
-
-            {/* Endpoints by Category */}
-            {Object.entries(apiEndpoints)
-              .filter(([key]) => selectedCategory === 'all' || key === selectedCategory)
-              .map(([category, endpoints]) => {
-                const filtered = endpoints.filter((ep) => {
-                  const matchesSearch =
-                    !searchQuery ||
-                    ep.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    ep.description_en.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    ep.description_ar.includes(searchQuery)
-                  return matchesSearch
-                })
-                if (filtered.length === 0) return null
-                return (
-                  <Card key={category}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">{categoryLabels[category]}</CardTitle>
-                      <CardDescription>{filtered.length} endpoints</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-1">
-                      {filtered.map((ep, idx) => (
-                        <EndpointRow
-                          key={ep.method + ep.path}
-                          endpoint={ep}
-                          baseUrl={baseUrl}
-                          globalIdx={idx}
-                          copiedIdx={copiedIdx}
-                          onCopy={copyToClipboard}
-                        />
-                      ))}
-                    </CardContent>
-                  </Card>
-                )
-              })}
-          </TabsContent>
-
-          {/* ═══════════════════════════════════════════════════════════ */}
-          {/* DATABASE TAB */}
-          {/* ═══════════════════════════════════════════════════════════ */}
-          <TabsContent value="database" className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {dbTables.map((table) => (
-                <Card key={table.name} className="overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-teal-500/10 to-emerald-500/10 p-3 pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <Database className="h-4 w-4 text-teal-500" />
-                      <span dir="ltr">{table.name}</span>
-                    </CardTitle>
-                    <CardDescription className="text-xs" dir="rtl">
-                      {table.name_ar}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-3">
-                    <div className="space-y-1.5">
-                      {table.columns.map((col) => (
-                        <div
-                          key={col.name}
-                          className="flex items-center justify-between rounded border px-2 py-1.5 text-xs"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-semibold text-slate-900 dark:text-white">
-                              {col.name}
-                            </span>
-                            <Badge variant="outline" className="text-[10px] px-1 py-0">
-                              {col.type}
-                            </Badge>
-                            {col.nullable && (
-                              <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                                nullable
-                              </Badge>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-slate-500 hidden sm:inline">
-                            {col.description_en}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    {table.relations && (
-                      <div className="mt-2 rounded bg-slate-50 p-2 dark:bg-slate-800/50">
-                        <p className="text-[10px] font-medium text-slate-500">Relations:</p>
-                        <p className="text-[10px] text-slate-600 dark:text-slate-400 font-mono" dir="ltr">
-                          {table.relations}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* ═══════════════════════════════════════════════════════════ */}
-          {/* SETUP TAB */}
-          {/* ═══════════════════════════════════════════════════════════ */}
-          <TabsContent value="setup" className="space-y-6">
-            {/* Quick Docker Start */}
-            <Card className="border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50 dark:border-teal-800 dark:from-teal-950/50 dark:to-emerald-950/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-teal-800 dark:text-teal-300">
-                  <Zap className="h-5 w-5" />
-                  تشغيل سريع بـ Docker | Quick Docker Start
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <CodeBlock
-                  code={`# 1. Extract and enter project directory\nunzip medicare-pro.zip\ncd medicare-pro\n\n# 2. Copy environment file\ncp .env.example .env\n\n# 3. Start all services (MySQL, Redis, Nginx, Soketi, PHP-FPM)\ndocker-compose up -d --build\n\n# 4. Run migrations and seed\ndocker-compose exec app php artisan migrate --seed\n\n# 5. Generate Swagger docs\ndocker-compose exec app php artisan l5-swagger:generate\n\n# ✅ App is running at http://localhost`}
-                />
-                <div className="flex gap-2">
-                  <Badge variant="outline" className="gap-1 text-xs">
-                    <Server className="h-3 w-3" /> MySQL: localhost:3306
-                  </Badge>
-                  <Badge variant="outline" className="gap-1 text-xs">
-                    <Activity className="h-3 w-3" /> Redis: localhost:6379
-                  </Badge>
-                  <Badge variant="outline" className="gap-1 text-xs">
-                    <ExternalLink className="h-3 w-3" /> phpMyAdmin: localhost:8080
-                  </Badge>
-                  <Badge variant="outline" className="gap-1 text-xs">
-                    <Zap className="h-3 w-3" /> Soketi WS: localhost:6001
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Step-by-step Manual Setup */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Terminal className="h-5 w-5 text-teal-500" />
-                  إعداد يدوي | Manual Setup
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {setupSteps.map((step) => (
-                    <div key={step.step} className="flex gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-bold text-teal-700 dark:bg-teal-900 dark:text-teal-300">
-                        {step.step}
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-semibold text-slate-900 dark:text-white" dir="rtl">
-                            {step.title_ar}
-                          </h4>
-                          <span className="text-xs text-slate-400">{step.title_en}</span>
-                        </div>
-                        <p className="text-xs text-slate-500" dir="rtl">{step.details_ar}</p>
-                        <CodeBlock code={step.cmd} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Demo Credentials */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Key className="h-5 w-5 text-teal-500" />
-                  بيانات الدخول التجريبية | Demo Credentials
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {demoCredentials.map((cred) => (
-                    <div key={cred.role} className="rounded-lg border p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        {projectInfo.roles.find((r) => r.name === cred.role)?.icon && (
-                          <span className="text-lg">
-                            {projectInfo.roles.find((r) => r.name === cred.role)!.icon}
-                          </span>
-                        )}
-                        <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                          {cred.name_ar}
-                        </span>
-                      </div>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Email:</span>
-                          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-slate-800">
-                            {cred.email}
-                          </code>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Password:</span>
-                          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-slate-800">
-                            {cred.password}
-                          </code>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Important URLs */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ExternalLink className="h-5 w-5 text-teal-500" />
-                  الروابط المهمة | Important URLs
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {[
-                    { label: 'API Base URL', url: '/api/v1', desc: 'جميع نقاط النهاية' },
-                    { label: 'Swagger Documentation', url: '/api/documentation', desc: 'توثيق API التفاعلي' },
-                    { label: 'Health Check', url: '/api/v1/languages', desc: 'فحص حالة الخادم' },
-                    { label: 'phpMyAdmin', url: 'http://localhost:8080', desc: 'إدارة قاعدة البيانات (Docker)' },
-                  ].map((link) => (
-                    <div
-                      key={link.label}
-                      className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{link.label}</p>
-                        <p className="text-xs text-slate-500">{link.desc}</p>
-                      </div>
-                      <code className="rounded bg-teal-50 px-2 py-1 text-xs font-mono text-teal-700 dark:bg-teal-900/50 dark:text-teal-300" dir="ltr">
-                        {link.url}
-                      </code>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ═══════════════════════════════════════════════════════════ */}
-          {/* API TESTER TAB */}
-          {/* ═══════════════════════════════════════════════════════════ */}
-          <TabsContent value="tester" className="space-y-6">
-            <Card className="border-teal-200 bg-gradient-to-r from-teal-50/50 to-emerald-50/50 dark:border-teal-800">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TestTube className="h-5 w-5 text-teal-500" />
-                  اختبار API | API Tester
-                </CardTitle>
-                <CardDescription>
-                  استخدم هذه الأداة لاختبار الـ API. أدخل الـ Base URL الخاص بك واختبر النقاط مباشرة.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <CodeBlock
-                  code={`# ═══════════════════════════════════════════════════
-# 1. تسجيل الدخول - Login
-# ═══════════════════════════════════════════════════════════════
-curl -X POST ${baseUrl}/api/v1/auth/login \\
-  -H "Content-Type: application/json" \\
-  -H "Accept-Language: ar" \\
-  -d '{"email":"patient@example.com","password":"password"}'
-
-# ═══════════════════════════════════════════════════════════════
-# 2. عرض الملف الشخصي - Get Profile
-# ═══════════════════════════════════════════════════════════════
-curl -X GET ${baseUrl}/api/v1/patient/profile \\
-  -H "Authorization: Bearer YOUR_TOKEN" \\
-  -H "Accept-Language: ar"
-
-# ═══════════════════════════════════════════════════════════════
-# 3. حجز موعد - Book Appointment
-# ═══════════════════════════════════════════════════════════════
-curl -X POST ${baseUrl}/api/v1/patient/appointments \\
-  -H "Authorization: Bearer YOUR_TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "doctor_id": 1,
-    "department_id": 1,
-    "appointment_date": "2026-08-20",
-    "appointment_time": "10:00",
-    "type": "consultation",
-    "payment_method": "cash"
-  }'
-
-# ═══════════════════════════════════════════════════════════════
-# 4. حالة الطابور - Queue Status
-# ═══════════════════════════════════════════════════════════════
-curl -X GET ${baseUrl}/api/v1/patient/queue-status \\
-  -H "Authorization: Bearer YOUR_TOKEN" \\
-  -H "Accept-Language: ar"
-
-# ═══════════════════════════════════════════════════════════════
-# 5. لوحة تحكم الطبيب - Doctor Dashboard
-# ═══════════════════════════════════════════════════════════════
-curl -X GET ${baseUrl}/api/v1/doctor/dashboard \\
-  -H "Authorization: Bearer DOCTOR_TOKEN" \\
-  -H "Accept-Language: en"
-
-# ═══════════════════════════════════════════════════════════════
-# 6. استدعاء المريض التالي (استقبال) - Call Next
-# ═══════════════════════════════════════════════════════════════
-curl -X POST ${baseUrl}/api/v1/receptionist/queue/1/call \\
-  -H "Authorization: Bearer RECEPTIONIST_TOKEN" \\
-  -H "Accept-Language: ar"
-
-# ═══════════════════════════════════════════════════════════════
-# 7. صرف وصفة (صيدلي) - Dispense Prescription
-# ═══════════════════════════════════════════════════════════════
-curl -X PUT ${baseUrl}/api/v1/pharmacist/prescriptions/1/dispense \\
-  -H "Authorization: Bearer PHARMACIST_TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{"dispensed_items":[{"prescription_item_id":1,"quantity_dispensed":30}]}'
-
-# ═══════════════════════════════════════════════════════════════
-# 8. إنشاء سجل طبي (طبيب) - Create Medical Record
-# ═══════════════════════════════════════════════════════════════
-curl -X POST ${baseUrl}/api/v1/doctor/medical-records \\
-  -H "Authorization: Bearer DOCTOR_TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "patient_id": 1,
-    "appointment_id": 1,
-    "diagnosis": "الأنفلونزا الموسمية",
-    "symptoms": "حمى، سعال، آلام الجسم",
-    "notes": "يحتاج راحة لمدة 3 أيام",
-    "vital_signs": {
-      "temperature": 38.5,
-      "blood_pressure_systolic": 120,
-      "blood_pressure_diastolic": 80,
-      "heart_rate": 72
-    }
-  }'
-
-# ═══════════════════════════════════════════════════════════════
-# 9. المستشفيات العامة (بدون مصادقة)
-# ═══════════════════════════════════════════════════════════════
-curl -X GET ${baseUrl}/api/v1/hospitals \\
-  -H "Accept-Language: ar"
-
-curl -X GET ${baseUrl}/api/v1/hospitals/1/doctors \\
-  -H "Accept-Language: ar"
-
-# ═══════════════════════════════════════════════════════════════
-# 10. لوحة تحكم المدير - Admin Dashboard
-# ═══════════════════════════════════════════════════════════════
-curl -X GET ${baseUrl}/api/v1/admin/dashboard \\
-  -H "Authorization: Bearer ADMIN_TOKEN" \\
-  -H "Accept-Language: ar"`}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Postman Collection Hint */}
-            <Card>
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
-                  <ExternalLink className="h-5 w-5" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                    Swagger UI Documentation
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    بعد تشغيل المشروع، افتح Swagger UI لاختبار جميع الـ API مباشرة من المتصفح
-                  </p>
-                </div>
-                <code className="hidden rounded bg-teal-50 px-2 py-1 text-xs font-mono text-teal-700 dark:bg-teal-900/50 dark:text-teal-300 sm:block" dir="ltr">
-                  {baseUrl}/api/documentation
-                </code>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ═══════════════════════════════════════════════════════════ */}
-          {/* MOBILE APP TAB */}
-          {/* ═══════════════════════════════════════════════════════════ */}
-          <TabsContent value="mobile" className="space-y-6">
-            <Card className="border-teal-200 bg-gradient-to-r from-teal-50/50 to-emerald-50/50 dark:border-teal-800">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Smartphone className="h-5 w-5 text-teal-500" />
-                  تطبيق الموبايل | Mobile App (Flutter)
-                </CardTitle>
-                <CardDescription>
-                  تطبيق Flutter مستقل متصل بنفس الـ API - يدعم Android و iOS
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {[
-                    { icon: Smartphone, title: 'Clean Architecture', desc: 'فصل كامل بين Presentation و Domain و Data layers', titleAr: 'هندسة نظيفة' },
-                    { icon: Activity, title: 'BLoC Pattern', desc: 'إدارة حالة التطبيق بـ Business Logic Component', titleAr: 'نمط BLoC' },
-                    { icon: Database, title: 'Hive Cache', desc: 'تخزين محلي سريع للبيانات المكررة', titleAr: 'ذاكرة Hive' },
-                    { icon: Layers, title: 'Dio HTTP', desc: 'عميل HTTP متقدم مع Interceptors', titleAr: 'Dio HTTP' },
-                    { icon: Key, title: 'GetIt DI', desc: 'حقن التبعيات لحلول قابلة للاختبار', titleAr: 'حقن التبعيات' },
-                    { icon: Globe, title: 'RTL/LTR', desc: 'دعم كامل للعربي والإنجليزي', titleAr: 'RTL/LTR' },
-                  ].map((f) => (
-                    <div key={f.title} className="flex items-start gap-3 rounded-lg border p-3">
-                      <f.icon className="mt-0.5 h-4 w-4 shrink-0 text-teal-500" />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{f.title}</p>
-                        <p className="text-xs text-slate-500">{f.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Flutter Screens */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Smartphone className="h-5 w-5 text-teal-500" />
-                  شاشات التطبيق | App Screens
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {[
-                    { name: 'Splash Screen', nameAr: 'شاشة البداية', role: 'عام' },
-                    { name: 'Login/Register', nameAr: 'تسجيل الدخول', role: 'عام' },
-                    { name: 'Home/Dashboard', nameAr: 'الرئيسية', role: 'جميع الأدوار' },
-                    { name: 'Patient Profile', nameAr: 'الملف الشخصي', role: 'مريض' },
-                    { name: 'Book Appointment', nameAr: 'حجز موعد', role: 'مريض' },
-                    { name: 'Queue Status', nameAr: 'حالة الطابور', role: 'مريض' },
-                    { name: 'Medical Records', nameAr: 'السجلات الطبية', role: 'مريض + طبيب' },
-                    { name: 'Prescriptions', nameAr: 'الوصفات', role: 'مريض + طبيب + صيدلي' },
-                    { name: 'Invoices & Payments', nameAr: 'الفواتير والدفع', role: 'مريض' },
-                    { name: 'Notifications', nameAr: 'الإشعارات', role: 'جميع الأدوار' },
-                    { name: 'Doctor Schedule', nameAr: 'جدول الطبيب', role: 'طبيب' },
-                    { name: 'Patient Queue', nameAr: 'طابور المرضى', role: 'استقبال' },
-                    { name: 'Medication Inventory', nameAr: 'مخزون الأدوية', role: 'صيدلي' },
-                    { name: 'Admin Dashboard', nameAr: 'لوحة المدير', role: 'مدير' },
-                    { name: 'Settings', nameAr: 'الإعدادات', role: 'جميع الأدوار' },
-                  ].map((screen) => (
-                    <div key={screen.name} className="flex items-center gap-2 rounded-lg border p-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <ChevronRight className="h-4 w-4 text-teal-500" />
-                      <div className="flex-1">
-                        <p className="text-xs font-semibold text-slate-900 dark:text-white">{screen.name}</p>
-                        <p className="text-[10px] text-slate-500" dir="rtl">{screen.nameAr}</p>
-                      </div>
-                      <Badge variant="outline" className="text-[10px]">
-                        {screen.role}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Download */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Download className="h-5 w-5 text-teal-500" />
-                  تحميل المشروع | Download Project
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-slate-600 dark:text-slate-400" dir="rtl">
-                  ملف ZIP جاهز للتحميل والرفع على GitHub. يحتوي على كود Laravel الكامل مع جميع الملفات.
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* MAIN CONTENT */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <main className="mx-auto max-w-6xl px-4 py-6">
+        {/* HOME PAGE */}
+        {currentPage === 'home' && (
+          <div className="space-y-8">
+            {/* Hero */}
+            <section className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-teal-600 to-emerald-700 text-white p-8 sm:p-12">
+              <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -translate-x-1/2 -translate-y-1/2" />
+              <div className="absolute bottom-0 right-0 w-48 h-48 bg-white/5 rounded-full translate-x-1/4 translate-y-1/4" />
+              <div className="relative z-10 max-w-xl">
+                <h1 className="text-3xl sm:text-4xl font-bold mb-3">رعاية صحية أفضل لعائلتك</h1>
+                <p className="text-teal-100 mb-6 text-sm sm:text-base">
+                  احجز موعدك بسهولة مع أفضل الأطباء. نظام طوابير ذكي، إشعارات فورية، ودفع إلكتروني آمن.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <Button className="gap-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700">
-                    <Download className="h-4 w-4" />
-                    medicare-pro.zip (347 KB)
+                  <Button size="lg" className="bg-white text-teal-700 hover:bg-teal-50 font-semibold" onClick={() => navigate('doctors')}>
+                    <Search className="h-4 w-4 ml-2" />
+                    احجز موعدك الآن
+                  </Button>
+                  <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10" onClick={() => navigate('departments')}>
+                    تصفح الأقسام
+                  </Button>
+                </div>
+              </div>
+            </section>
+
+            {/* Quick Search */}
+            <section>
+              <div className="relative max-w-2xl mx-auto">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="ابحث عن طبيب، قسم، أو مستشفى..."
+                  className="pr-10 h-12 text-sm rounded-xl border-gray-200"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </section>
+
+            {/* Stats */}
+            <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { icon: Hospital, label: 'مستشفى', value: '3', color: 'from-teal-500 to-emerald-600' },
+                { icon: Users, label: 'طبيب', value: '42', color: 'from-blue-500 to-indigo-600' },
+                { icon: Star, label: 'تقييم', value: '4.8', color: 'from-amber-500 to-orange-600' },
+                { icon: Clock, label: 'متوسط الانتظار', value: '18 د', color: 'from-rose-500 to-pink-600' },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-white rounded-xl p-4 text-center shadow-sm border">
+                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br ${stat.color} text-white mb-2`}>
+                    <stat.icon className="h-5 w-5" />
+                  </div>
+                  <p className="text-xl font-bold">{stat.value}</p>
+                  <p className="text-xs text-gray-500">{stat.label}</p>
+                </div>
+              ))}
+            </section>
+
+            {/* Hospitals */}
+            <section>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-gray-900">المستشفيات والعيادات</h2>
+                <Button variant="ghost" size="sm">عرض الكل ←</Button>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {hospitals.map((h) => (
+                  <Card key={h.id} className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('hospital', { hospitalId: h.id })}>
+                    <div className="bg-gradient-to-l from-teal-500/10 to-emerald-500/10 p-6 text-center">
+                      <span className="text-5xl">{h.image}</span>
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-bold text-sm">{h.name_ar}</h3>
+                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                        <MapPin className="h-3 w-3" /> {h.location}
+                      </p>
+                      <div className="flex justify-between items-center mt-3 pt-3 border-t text-xs">
+                        <span className="text-gray-500">{h.doctors} طبيب</span>
+                        <span className="flex items-center gap-0.5 text-amber-500 font-semibold">
+                          <Star className="h-3 w-3 fill-current" /> {h.rating}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
+            {/* Departments Quick Links */}
+            <section>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-gray-900">الأقسام الطبية</h2>
+                <Button variant="ghost" size="sm" onClick={() => navigate('departments')}>عرض الكل ←</Button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {departments.slice(0, 4).map((dept) => (
+                  <button
+                    key={dept.id}
+                    className="bg-white rounded-xl p-4 text-center shadow-sm border hover:shadow-md hover:border-teal-200 transition-all"
+                    onClick={() => navigate('doctors')}
+                  >
+                    <dept.icon className={`h-8 w-8 mx-auto mb-2 ${dept.color}`} />
+                    <p className="text-sm font-semibold">{dept.name_ar}</p>
+                    <p className="text-[10px] text-gray-400">{dept.doctors} أطباء</p>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Top Doctors */}
+            <section>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-gray-900">أفضل الأطباء</h2>
+                <Button variant="ghost" size="sm" onClick={() => navigate('doctors')}>عرض الكل ←</Button>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {doctors.slice(0, 3).map((doc) => (
+                  <Card key={doc.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('doctor-profile', { doctorId: doc.id })}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-14 h-14 rounded-xl bg-teal-50 flex items-center justify-center text-2xl shrink-0">
+                          {doc.image}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-sm">{doc.name_ar}</h3>
+                          <p className="text-xs text-gray-500">{doc.specialty_ar} - {doc.dept}</p>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="flex items-center gap-0.5 text-xs text-amber-500 font-semibold">
+                              <Star className="h-3 w-3 fill-current" /> {doc.rating}
+                            </span>
+                            <Badge variant="outline" className="text-[10px]">
+                              {doc.fee} ر.س
+                            </Badge>
+                            {doc.available && (
+                              <Badge className="text-[10px] bg-green-50 text-green-600">متاح</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
+            {/* Features */}
+            <section>
+              <h2 className="text-lg font-bold text-gray-900 mb-4 text-center">لماذا MediCare Pro؟</h2>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  { icon: Clock, title: 'نظام طوابير ذكي', desc: 'رقم طابور تلقائي مع تقدير وقت الانتظار', color: 'text-blue-500' },
+                  { icon: Bell, title: 'إشعارات فورية', desc: 'تنبيهات عبر Push و SMS عند دورك', color: 'text-amber-500' },
+                  { icon: CreditCard, title: 'دفع إلكتروني', desc: 'ادفع بسهولة بالبطاقة أو المحفظة أو التأمين', color: 'text-green-500' },
+                  { icon: Shield, title: 'أمن وخصوصية', desc: 'حماية كاملة لبياناتك الطبية', color: 'text-purple-500' },
+                ].map((f) => (
+                  <div key={f.title} className="bg-white rounded-xl p-4 border shadow-sm text-center">
+                    <f.icon className={`h-8 w-8 mx-auto mb-2 ${f.color}`} />
+                    <p className="text-sm font-semibold">{f.title}</p>
+                    <p className="text-[10px] text-gray-500 mt-1">{f.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Reviews */}
+            <section>
+              <h2 className="text-lg font-bold text-gray-900 mb-4">آراء المرضى</h2>
+              <div className="grid sm:grid-cols-3 gap-3">
+                {reviews.map((r) => (
+                  <Card key={r.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-1 mb-2">
+                        {Array.from({ length: r.rating }).map((_, i) => (
+                          <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-700">{r.comment}</p>
+                      <p className="text-xs text-gray-400 mt-2">{r.patient} • {r.date}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
+            {/* Link to Admin */}
+            <section className="bg-gradient-to-l from-slate-700 to-slate-800 rounded-2xl p-6 text-white text-center">
+              <h3 className="font-bold text-lg mb-2">لوحة إدارة المستشفى</h3>
+              <p className="text-sm text-slate-300 mb-4">للموظفين والأطباء - الدخول عبر لوحة الإدارة المنفصلة</p>
+              <Button className="bg-white text-slate-700 hover:bg-slate-100 gap-1" onClick={() => navigate('login')}>
+                <ExternalLink className="h-3.5 w-3.5" />
+                الدخول كموظف
+              </Button>
+            </section>
+          </div>
+        )}
+
+        {/* DOCTORS LIST PAGE */}
+        {currentPage === 'doctors' && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Button variant="ghost" size="sm" onClick={() => navigate('home')}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <h2 className="text-xl font-bold">الأطباء</h2>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant={selectedDept === 0 ? 'default' : 'outline'} onClick={() => setSelectedDept(0)}>الكل</Button>
+              {departments.map((d) => (
+                <Button key={d.id} size="sm" variant={selectedDept === d.id ? 'default' : 'outline'} onClick={() => setSelectedDept(d.id)}>
+                  {d.name_ar}
+                </Button>
+              ))}
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {doctors
+                .filter((d) => selectedDept === 0 || departments[selectedDept - 1]?.name_ar === d.dept)
+                .filter((d) => !searchQuery || d.name_ar.includes(searchQuery) || d.specialty_ar.includes(searchQuery))
+                .map((doc) => (
+                  <Card key={doc.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('doctor-profile', { doctorId: doc.id })}>
+                    <CardContent className="p-5">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="w-14 h-14 rounded-xl bg-teal-50 flex items-center justify-center text-2xl shrink-0">
+                          {doc.image}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-bold">{doc.name_ar}</h3>
+                          <p className="text-xs text-gray-500">{doc.specialty_ar}</p>
+                          <p className="text-[10px] text-gray-400">{doc.dept}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <span className="flex items-center gap-0.5 text-sm text-amber-500 font-semibold">
+                          <Star className="h-3.5 w-3.5 fill-current" /> {doc.rating}
+                        </span>
+                        <Badge variant="outline" className="text-[10px]">{doc.reviews} تقييم</Badge>
+                        <Badge variant="outline" className="text-[10px]">{doc.patients} مريض</Badge>
+                        {doc.available ? (
+                          <Badge className="text-[10px] bg-green-50 text-green-600">متاح</Badge>
+                        ) : (
+                          <Badge className="text-[10px] bg-gray-100 text-gray-500">غير متاح</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between pt-3 border-t">
+                        <span className="text-xs text-gray-500">📅 {doc.schedule}</span>
+                        <span className="text-sm font-bold text-teal-600">{doc.fee} ر.س</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* DOCTOR PROFILE PAGE */}
+        {currentPage === 'doctor-profile' && selectedDoctor > 0 && (() => {
+          const doc = doctors.find((d) => d.id === selectedDoctor) || doctors[0]
+          return (
+            <div className="space-y-6">
+              <Button variant="ghost" size="sm" onClick={() => navigate('doctors')} className="mb-2">
+                <ArrowLeft className="h-4 w-4 ml-1" /> العودة للأطباء
+              </Button>
+
+              {/* Doctor Header */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex flex-col sm:flex-row items-start gap-4">
+                    <div className="w-20 h-20 rounded-2xl bg-teal-50 flex items-center justify-center text-4xl shrink-0">
+                      {doc.image}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h2 className="text-xl font-bold">{doc.name_ar}</h2>
+                        {doc.available ? (
+                          <Badge className="bg-green-50 text-green-600">متاح للحجز</Badge>
+                        ) : (
+                          <Badge className="bg-gray-100 text-gray-500">غير متاح حالياً</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500">{doc.specialty_ar} • {doc.dept}</p>
+                      <div className="flex flex-wrap gap-3 mt-3 text-sm">
+                        <span className="flex items-center gap-1 text-amber-500 font-semibold">
+                          <Star className="h-4 w-4 fill-current" /> {doc.rating} ({doc.reviews} تقييم)
+                        </span>
+                        <span className="text-gray-400">|</span>
+                        <span className="text-gray-500">{doc.patients} مريض</span>
+                        <span className="text-gray-400">|</span>
+                        <span className="text-teal-600 font-bold">{doc.fee} ر.س</span>
+                      </div>
+                      <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+                        <Clock className="h-3 w-3" /> {doc.schedule}
+                      </div>
+                    </div>
+                    <Button
+                      className="bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700"
+                      disabled={!doc.available}
+                      onClick={() => navigate('booking', { doctorId: doc.id })}
+                    >
+                      <Calendar className="h-4 w-4 ml-1" />
+                      احجز موعد
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Reviews for this doctor */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">تقييمات المرضى</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {reviews.map((r) => (
+                    <div key={r.id} className="flex gap-3 p-3 rounded-lg border">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-semibold">{r.patient}</span>
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: r.rating }).map((_, i) => (
+                              <Star key={i} className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-600">{r.comment}</p>
+                      </div>
+                      <span className="text-[10px] text-gray-400 shrink-0">{r.date}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+          )
+        })()}
+
+        {/* DEPARTMENTS PAGE */}
+        {currentPage === 'departments' && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={() => navigate('home')}><ArrowLeft className="h-4 w-4" /></Button>
+              <h2 className="text-xl font-bold">الأقسام الطبية</h2>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {departments.map((dept) => (
+                <Card key={dept.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('doctors')}>
+                  <CardContent className="p-5 text-center">
+                    <dept.icon className={`h-12 w-12 mx-auto mb-3 ${dept.color}`} />
+                    <h3 className="font-bold">{dept.name_ar}</h3>
+                    <p className="text-[10px] text-gray-400 mb-2">{dept.name_en}</p>
+                    <p className="text-xs text-gray-500">{dept.desc_ar}</p>
+                    <p className="text-xs text-teal-600 mt-3 font-semibold">{dept.doctors} أطباء</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* BOOKING PAGE */}
+        {currentPage === 'booking' && selectedDoctor > 0 && (() => {
+          const doc = doctors.find((d) => d.id === selectedDoctor) || doctors[0]
+          return (
+            <div className="max-w-2xl mx-auto space-y-6">
+              <Button variant="ghost" size="sm" onClick={() => navigate('doctor-profile', { doctorId: doc.id })}>
+                <ArrowLeft className="h-4 w-4 ml-1" /> العودة لملف الطبيب
+              </Button>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>حجز موعد جديد</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {bookingSuccess ? (
+                    <div className="text-center py-8">
+                      <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                      <h3 className="text-xl font-bold text-green-600 mb-2">تم الحجز بنجاح!</h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        تم حجز موعدك مع {doc.name_ar} بتاريخ {selectedDate} الساعة {selectedTime}
+                      </p>
+                      <p className="text-xs text-gray-400 mb-6">رقم الطابور سيُرسل لك عبر SMS والإشعارات</p>
+                      <div className="flex gap-3 justify-center">
+                        <Button onClick={() => navigate('queue')} variant="outline">تتبع الطابور</Button>
+                        <Button onClick={() => navigate('home')} className="bg-teal-500 text-white">الرئيسية</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Doctor Info */}
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-teal-50">
+                        <span className="text-2xl">{doc.image}</span>
+                        <div>
+                          <p className="font-semibold text-sm">{doc.name_ar}</p>
+                          <p className="text-xs text-gray-500">{doc.specialty_ar} • {doc.fee} ر.س</p>
+                        </div>
+                      </div>
+
+                      {/* Date Selection */}
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">تاريخ الموعد</label>
+                        <Input
+                          type="date"
+                          min={new Date().toISOString().split('T')[0]}
+                          value={selectedDate}
+                          onChange={(e) => setSelectedDate(e.target.value)}
+                          className="rounded-lg"
+                        />
+                      </div>
+
+                      {/* Time Selection */}
+                      {selectedDate && (
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">وقت الموعد</label>
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                            {timeSlots.map((slot) => (
+                              <button
+                                key={slot}
+                                className={`p-2 rounded-lg text-xs font-medium border transition-colors ${
+                                  selectedTime === slot
+                                    ? 'bg-teal-500 text-white border-teal-500'
+                                    : 'bg-white hover:bg-teal-50 hover:border-teal-200'
+                                }`}
+                                onClick={() => setSelectedTime(slot)}
+                              >
+                                {slot}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Payment Method */}
+                      {selectedTime && (
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">طريقة الدفع</label>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {[
+                              { label: 'نقداً', icon: '💵' },
+                              { label: 'بطاقة', icon: '💳' },
+                              { label: 'محفظة', icon: '📱' },
+                              { label: 'تأمين', icon: '🏥' },
+                            ].map((m) => (
+                              <button
+                                key={m.label}
+                                className="flex items-center gap-2 p-3 rounded-lg border hover:bg-teal-50 hover:border-teal-200 transition-colors text-xs"
+                              >
+                                <span className="text-lg">{m.icon}</span>
+                                {m.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Summary */}
+                      {selectedTime && (
+                        <div className="rounded-lg border p-4 bg-gray-50">
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-gray-500">الطبيب:</span>
+                            <span className="font-semibold">{doc.name_ar}</span>
+                          </div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-gray-500">التاريخ:</span>
+                            <span className="font-semibold">{selectedDate}</span>
+                          </div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-gray-500">الوقت:</span>
+                            <span className="font-semibold">{selectedTime}</span>
+                          </div>
+                          <Separator className="my-2" />
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">الرسوم:</span>
+                            <span className="font-bold text-teal-600">{doc.fee} ر.س</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <Button
+                        className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700 h-11"
+                        disabled={!selectedDate || !selectedTime}
+                        onClick={handleBooking}
+                      >
+                        <Calendar className="h-4 w-4 ml-2" />
+                        تأكيد الحجز
+                      </Button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )
+        })()}
+
+        {/* LOGIN PAGE */}
+        {currentPage === 'login' && (
+          <div className="max-w-md mx-auto">
+            <Card>
+              <CardHeader className="text-center">
+                <span className="text-4xl mb-2 block">🏥</span>
+                <CardTitle>تسجيل الدخول</CardTitle>
+                <p className="text-xs text-gray-500">ادخل إلى حسابك في MediCare Pro</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">البريد الإلكتروني</label>
+                  <Input type="email" placeholder="example@email.com" className="rounded-lg" dir="ltr" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">كلمة المرور</label>
+                  <Input type="password" placeholder="••••••••" className="rounded-lg" dir="ltr" />
+                </div>
+                <Button className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white h-11">تسجيل الدخول</Button>
+                <p className="text-center text-xs text-gray-500">
+                  ليس لديك حساب؟ <button className="text-teal-600 font-semibold" onClick={() => navigate('register')}>إنشاء حساب</button>
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* REGISTER PAGE */}
+        {currentPage === 'register' && (
+          <div className="max-w-md mx-auto">
+            <Card>
+              <CardHeader className="text-center">
+                <span className="text-4xl mb-2 block">🤒</span>
+                <CardTitle>إنشاء حساب جديد</CardTitle>
+                <p className="text-xs text-gray-500">سجل كي تحجز مواعيد وتتابع سجلاتك الطبية</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">الاسم الكامل</label>
+                  <Input placeholder="الاسم الثلاثي" className="rounded-lg" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">البريد الإلكتروني</label>
+                  <Input type="email" placeholder="example@email.com" className="rounded-lg" dir="ltr" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">رقم الهاتف</label>
+                  <Input placeholder="+9665XXXXXXXX" className="rounded-lg" dir="ltr" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">كلمة المرور</label>
+                  <Input type="password" placeholder="8 أحرف على الأقل" className="rounded-lg" dir="ltr" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">المستشفى المفضل</label>
+                  <select className="w-full border rounded-lg p-2 text-sm">
+                    {hospitals.map((h) => (
+                      <option key={h.id} value={h.id}>{h.name_ar}</option>
+                    ))}
+                  </select>
+                </div>
+                <Button className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white h-11">إنشاء الحساب</Button>
+                <p className="text-center text-xs text-gray-500">
+                  لديك حساب؟ <button className="text-teal-600 font-semibold" onClick={() => navigate('login')}>تسجيل الدخول</button>
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* QUEUE STATUS PAGE */}
+        {currentPage === 'queue' && (
+          <div className="max-w-lg mx-auto space-y-4">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={() => navigate('home')}><ArrowLeft className="h-4 w-4" /></Button>
+              <h2 className="text-xl font-bold">حالة الطابور</h2>
+            </div>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-teal-50 text-4xl mb-4">
+                  <TicketCheck className="h-10 w-10 text-teal-500" />
+                </div>
+                <p className="text-sm text-gray-500 mb-1">رقمك في الطابور</p>
+                <p className="text-4xl font-bold text-teal-600 mb-4">D1-015</p>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">يُخدم الآن</p>
+                    <p className="text-lg font-bold text-blue-600">D1-012</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">المتقدمون</p>
+                    <p className="text-lg font-bold text-amber-600">3</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    <p className="text-xs text-gray-500">الانتظار المقدر</p>
+                    <p className="text-lg font-bold">~22 د</p>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-amber-50 p-3 text-amber-700 text-xs">
+                  ⏰ سيتم إرسال إشعار عند اقتراب دورك
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* HOSPITAL PAGE */}
+        {currentPage === 'hospital' && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={() => navigate('home')}><ArrowLeft className="h-4 w-4" /></Button>
+              <h2 className="text-xl font-bold">{hospitals.find((h) => h.id === selectedHospital)?.name_ar}</h2>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="rounded-xl bg-gradient-to-l from-teal-500/10 to-emerald-500/10 p-8 text-center">
+                <span className="text-6xl">{hospitals.find((h) => h.id === selectedHospital)?.image}</span>
+                <p className="mt-3 text-sm text-gray-500 flex items-center justify-center gap-1">
+                  <MapPin className="h-3 w-3" /> {hospitals.find((h) => h.id === selectedHospital)?.location}
+                </p>
+              </div>
+              <Card>
+                <CardContent className="p-6 space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">الأطباء</span>
+                    <span className="font-bold">{hospitals.find((h) => h.id === selectedHospital)?.doctors}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">الأقسام</span>
+                    <span className="font-bold">{hospitals.find((h) => h.id === selectedHospital)?.departments}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">التقييم</span>
+                    <span className="font-bold text-amber-500 flex items-center gap-1">
+                      <Star className="h-3.5 w-3.5 fill-current" /> {hospitals.find((h) => h.id === selectedHospital)?.rating}
+                    </span>
+                  </div>
+                  <Separator />
+                  <Button className="w-full bg-teal-500 text-white" onClick={() => navigate('doctors')}>
+                    حجز موعد الآن
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* PROFILE PAGE */}
+        {currentPage === 'profile' && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            <h2 className="text-xl font-bold">الملف الشخصي</h2>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-16 h-16 rounded-full bg-teal-100 flex items-center justify-center text-2xl">🤒</div>
+                  <div>
+                    <h3 className="font-bold">أحمد محمد علي</h3>
+                    <p className="text-xs text-gray-500">ahmed@example.com • +966501234567</p>
+                  </div>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {[
+                    { label: 'فصيلة الدم', value: 'A+', icon: '🩸' },
+                    { label: 'تاريخ الميلاد', value: '1990-05-15', icon: '🎂' },
+                    { label: 'الجنس', value: 'ذكر', icon: '👤' },
+                    { label: 'العنوان', value: 'الرياض - حي العليا', icon: '📍' },
+                  ].map((field) => (
+                    <div key={field.label} className="flex items-center gap-2 p-3 rounded-lg border">
+                      <span>{field.icon}</span>
+                      <div>
+                        <p className="text-[10px] text-gray-400">{field.label}</p>
+                        <p className="text-sm font-semibold">{field.value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex gap-3">
+                  <Button className="flex-1 bg-teal-500 text-white" onClick={() => navigate('records')}>
+                    <FileText className="h-4 w-4 ml-1" /> السجلات الطبية
+                  </Button>
+                  <Button className="flex-1 bg-teal-500 text-white" onClick={() => navigate('prescriptions')}>
+                    <Pill className="h-4 w-4 ml-1" /> الوصفات
                   </Button>
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
+
+        {/* RECORDS PAGE */}
+        {currentPage === 'records' && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            <Button variant="ghost" size="sm" onClick={() => navigate('profile')}><ArrowLeft className="h-4 w-4 ml-1" /> الملف الشخصي</Button>
+            <h2 className="text-xl font-bold">السجلات الطبية</h2>
+            {[
+              { id: 1, date: '2026-08-14', doctor: 'د. سارة علي', diagnosis: 'أنفلونزا موسمية', dept: 'الباطنة' },
+              { id: 2, date: '2026-07-20', doctor: 'د. خالد يوسف', diagnosis: 'ارتفاع ضغط الدم', dept: 'القلب' },
+              { id: 3, date: '2026-06-10', doctor: 'د. منى عبدالله', diagnosis: 'التهاب جلد', dept: 'الجلدية' },
+            ].map((r) => (
+              <Card key={r.id}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold text-sm">{r.diagnosis}</p>
+                      <p className="text-xs text-gray-500 mt-1">{r.doctor} • {r.dept}</p>
+                    </div>
+                    <span className="text-xs text-gray-400">{r.date}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* PRESCRIPTIONS PAGE */}
+        {currentPage === 'prescriptions' && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            <Button variant="ghost" size="sm" onClick={() => navigate('profile')}><ArrowLeft className="h-4 w-4 ml-1" /> الملف الشخصي</Button>
+            <h2 className="text-xl font-bold">الوصفات الطبية</h2>
+            {[
+              { id: 1, date: '2026-08-14', doctor: 'د. سارة علي', items: ['باراسيتامول 500ملغ - 3 مرات يومياً', 'فيتامين C 1000ملغ - مرة يومياً'], status: 'مكتملة' },
+              { id: 2, date: '2026-07-20', doctor: 'د. خالد يوسف', items: ['أملوديبين 5ملغ - مرة يومياً'], status: 'مكتملة' },
+            ].map((p) => (
+              <Card key={p.id}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <p className="font-semibold text-sm">وصفة #{p.id}</p>
+                      <p className="text-xs text-gray-500">{p.doctor} • {p.date}</p>
+                    </div>
+                    <Badge className="bg-green-50 text-green-600">{p.status}</Badge>
+                  </div>
+                  <div className="space-y-1">
+                    {p.items.map((item, i) => (
+                      <p key={i} className="text-xs text-gray-600 flex items-center gap-1">
+                        <Pill className="h-3 w-3" /> {item}
+                      </p>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </main>
 
-      {/* Footer */}
-      <footer className="mt-12 border-t border-slate-200 dark:border-slate-800">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <span className="text-lg">🏥</span>
-              <span>MediCare Pro &copy; 2026</span>
-              <span className="mx-1">|</span>
-              <span>MIT License</span>
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* FOOTER */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <footer className="mt-12 border-t bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-8">
+          <div className="grid sm:grid-cols-3 gap-6">
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">🏥</span>
+                <span className="font-bold text-teal-700">MediCare Pro</span>
+              </div>
+              <p className="text-xs text-gray-500">نظام متكامل لإدارة المستشفيات والعيادات - رعاية صحية أفضل للجميع</p>
             </div>
-            <div className="flex items-center gap-4 text-xs text-slate-400">
-              <span>Laravel 11 + PHP 8.3</span>
-              <span>•</span>
-              <span>MySQL 8 + Redis</span>
+            <div>
+              <h4 className="font-semibold text-sm mb-2">روابط سريعة</h4>
+              <div className="space-y-1">
+                <button onClick={() => navigate('home')} className="block text-xs text-gray-500 hover:text-teal-600">الرئيسية</button>
+                <button onClick={() => navigate('doctors')} className="block text-xs text-gray-500 hover:text-teal-600">الأطباء</button>
+                <button onClick={() => navigate('departments')} className="block text-xs text-gray-500 hover:text-teal-600">الأقسام</button>
+              </div>
+            </div>
+            <div>
+              <h4 className="font-semibold text-sm mb-2">تواصل معنا</h4>
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 flex items-center gap-1"><Phone className="h-3 w-3" /> 920012345</p>
+                <p className="text-xs text-gray-500 flex items-center gap-1"><Mail className="h-3 w-3" /> info@medicare.com</p>
+              </div>
+            </div>
+          </div>
+          <Separator className="my-6" />
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-400">
+            <p>© 2026 MediCare Pro. جميع الحقوق محفوظة.</p>
+            <div className="flex items-center gap-3">
+              <span>Laravel 11 + Flutter</span>
               <span>•</span>
               <span>80+ API Endpoints</span>
-              <span>•</span>
-              <span>Flutter Mobile</span>
             </div>
           </div>
         </div>
@@ -923,110 +964,30 @@ curl -X GET ${baseUrl}/api/v1/admin/dashboard \\
   )
 }
 
-/* ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════ */
 /* Sub-components */
-/* ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════ */
 
-function EndpointRow({
-  endpoint,
-  baseUrl,
-  globalIdx,
-  copiedIdx,
-  onCopy,
-}: {
-  endpoint: ApiEndpoint & { category: string }
-  baseUrl: string
-  globalIdx: number
-  copiedIdx: number | null
-  onCopy: (text: string, idx: number) => void
-}) {
-  const fullUrl = `${baseUrl}${endpoint.path}`
-  const uid = `${endpoint.method}-${endpoint.path}-${endpoint.category}`.replace(/[^a-zA-Z0-9]/g, '_')
-
+function NavButton({ children, onClick, active }: { children: React.ReactNode; onClick: () => void; active?: boolean }) {
   return (
-    <div className="group flex items-start gap-2 rounded-lg border p-2.5 transition-all hover:bg-slate-50 dark:hover:bg-slate-800/30">
-      <Badge className={`shrink-0 text-[10px] font-bold px-1.5 py-0 ${methodColors[endpoint.method] || ''}`}>
-        {endpoint.method}
-      </Badge>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <code className="truncate text-xs font-mono font-semibold text-slate-900 dark:text-white" dir="ltr">
-            {endpoint.path}
-          </code>
-          <button
-            onClick={() => onCopy(fullUrl, globalIdx)}
-            className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-          >
-            {copiedIdx === globalIdx ? (
-              <CheckCircle2 className="h-3 w-3 text-green-500" />
-            ) : (
-              <Copy className="h-3 w-3 text-slate-400" />
-            )}
-          </button>
-        </div>
-        <p className="mt-0.5 text-[11px] text-slate-500" dir="rtl">{endpoint.description_ar}</p>
-
-        {/* Params */}
-        {endpoint.params && endpoint.params.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {endpoint.params.map((p) => (
-              <Badge key={p.name} variant="outline" className="text-[9px] px-1 py-0" dir="ltr">
-                {p.name}: {p.type}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {/* Body */}
-        {endpoint.body && endpoint.body.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {endpoint.body.filter((b) => b.required).map((b) => (
-              <Badge key={b.name} className="text-[9px] px-1 py-0 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" dir="ltr">
-                {b.name}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {/* Roles */}
-        <div className="mt-1 flex items-center gap-1">
-          {endpoint.auth ? (
-            <Badge variant="secondary" className="text-[9px] gap-0.5">
-              <Shield className="h-2.5 w-2.5" />
-              {endpoint.roles.join(', ')}
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-[9px]">
-              🌐 Public
-            </Badge>
-          )}
-        </div>
-      </div>
-    </div>
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+        active ? 'bg-teal-50 text-teal-700' : 'text-gray-600 hover:bg-gray-100'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
 
-function CodeBlock({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false)
-
+function MobileNavButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
-    <div className="group relative rounded-lg border bg-slate-950">
-      <button
-        onClick={() => {
-          navigator.clipboard.writeText(code.trim())
-          setCopied(true)
-          setTimeout(() => setCopied(false), 2000)
-        }}
-        className="absolute top-2 right-2 rounded bg-slate-800 p-1.5 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
-      >
-        {copied ? <CheckCircle2 className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
-      </button>
-      <ScrollArea className="max-h-96">
-        <pre className="overflow-x-auto p-3 text-xs leading-relaxed text-slate-300" dir="ltr">
-          {code}
-        </pre>
-      </ScrollArea>
-    </div>
+    <button
+      onClick={onClick}
+      className="w-full text-right px-3 py-2.5 rounded-lg text-sm hover:bg-gray-100 transition-colors"
+    >
+      {children}
+    </button>
   )
 }
