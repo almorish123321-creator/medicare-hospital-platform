@@ -1,0 +1,27 @@
+<?php
+
+return [
+    'login' => 'Login',
+    'register' => 'Register',
+    'logout' => 'Logout',
+    'password' => 'Password',
+    'confirm_password' => 'Confirm Password',
+    'email' => 'Email',
+    'name' => 'Name',
+    'phone' => 'Phone',
+    'failed' => 'Login failed. Please check your credentials.',
+    'unauthenticated' => 'Unauthenticated. Please log in first.',
+    'unauthorized' => 'Unauthorized to perform this action.',
+    'account_suspended' => 'Your account has been suspended. Please contact the administrator.',
+    'no_hospital_assigned' => 'You are not assigned to any hospital.',
+    'hospital_inactive' => 'The hospital is currently inactive.',
+    'password_reset_sent' => 'Password reset link has been sent to your email.',
+    'password_reset_success' => 'Password has been reset successfully.',
+    'registration_success' => 'Account created successfully.',
+    'login_success' => 'Logged in successfully.',
+    'logout_success' => 'Logged out successfully.',
+    'language_changed' => 'Language changed successfully.',
+    'invalid_credentials' => 'Invalid credentials.',
+    'token_refreshed' => 'Token refreshed successfully.',
+    'user_not_found' => 'User not found.',
+];

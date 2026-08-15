@@ -1,0 +1,46 @@
+# ─── Dependencies ──────────────────────────────────────────────
+vendor/
+node_modules/
+
+# ─── Git ────────────────────────────────────────────────────────────
+.git
+.gitignore
+
+# ─── Docker ──────────────────────────────────────────────────────────
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# ─── IDE & Editor ────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ─── OS Files ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Environment & Logs ─────────────────────────────────────────────
+.env
+.env.*.local
+storage/logs/*
+*.log
+
+# ─── Build & Cache ──────────────────────────────────────────────────
+public/hot
+public/build
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+
+# ─── Testing ─────────────────────────────────────────────────────────
+tests/
+phpunit.xml
+Pest.php
+
+# ─── Documentation ──────────────────────────────────────────────────
+
+# ─── Misc ────────────────────────────────────────────────────────────
+.editorconfig
+.phpunit.result.cache

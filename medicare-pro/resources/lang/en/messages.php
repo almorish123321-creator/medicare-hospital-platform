@@ -1,0 +1,27 @@
+<?php
+
+return [
+    'success' => 'Operation completed successfully.',
+    'error' => 'An error occurred. Please try again.',
+    'not_found' => ':model not found.',
+    'deleted' => ':model deleted successfully.',
+    'updated' => ':model updated successfully.',
+    'created' => ':model created successfully.',
+    'no_data' => 'No data available.',
+    'forbidden' => 'Access forbidden.',
+    'server_error' => 'Server error. Please try again later.',
+    'no_subscription' => 'No active subscription. Please subscribe to access.',
+    'subscription_expired' => 'Subscription has expired. Please renew.',
+    'file_uploaded' => 'File uploaded successfully.',
+    'file_upload_error' => 'File upload failed.',
+    'no_changes' => 'No changes to save.',
+    'invalid_data' => 'The provided data is invalid.',
+    'rate_limit' => 'Rate limit exceeded. Please try again later.',
+    'invalid_token' => 'Token is invalid or expired.',
+    'check_in_success' => 'Patient checked in successfully.',
+    'appointment_cancelled' => 'Appointment cancelled successfully.',
+    'prescription_dispensed' => 'Prescription dispensed successfully.',
+    'payment_processed' => 'Payment processed successfully.',
+    'queue_called' => 'Patient has been called.',
+    'vitals_recorded' => 'Vital signs recorded successfully.',
+];
