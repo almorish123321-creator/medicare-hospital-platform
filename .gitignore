@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+vendor/
 .pnp
 .pnp.js
 bun.lock
@@ -10,7 +11,7 @@ out/
 dist/
 build/
 
-# Prisma
+# Prisma DB
 db/*.db
 db/*.db-journal
 
@@ -50,5 +51,16 @@ examples/
 tests/
 public/logo.svg
 public/robots.txt
-mini-services/*/node_modules/
-mini-services/admin-dashboard/bun.lock
+tool-results/
+
+# Laravel specific
+medicare-pro/vendor/
+medicare-pro/node_modules/
+medicare-pro/.env
+medicare-pro/storage/framework/cache/*
+medicare-pro/storage/framework/sessions/*
+medicare-pro/storage/framework/testing/*
+medicare-pro/storage/logs/*
+medicare-pro/storage/app/public/*
+medicare-pro/bootstrap/cache/*
+medicare-pro/storage/api-docs/*
